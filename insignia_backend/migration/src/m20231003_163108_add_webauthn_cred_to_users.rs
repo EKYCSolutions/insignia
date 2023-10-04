@@ -21,8 +21,8 @@ impl MigrationTrait for Migration {
                             .primary_key(),
                     )
                     .col(ColumnDef::new(UserWebauthnCredential::Name).string().not_null())
+                    .col(ColumnDef::new(UserWebauthnCredential::CredentialId).string().not_null())
                     .col(ColumnDef::new(UserWebauthnCredential::CredentialData).json_binary().not_null())
-                    .col(ColumnDef::new(UserWebauthnCredential::CredentialId).timestamp_with_time_zone().not_null())
                     .col(ColumnDef::new(UserWebauthnCredential::CreatedAt).timestamp_with_time_zone().default(Expr::current_timestamp()).not_null())
                     .col(ColumnDef::new(UserWebauthnCredential::UserId).uuid().not_null())
                     .foreign_key(

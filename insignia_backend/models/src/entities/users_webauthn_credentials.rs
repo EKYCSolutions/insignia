@@ -9,9 +9,9 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
     pub name: String,
+    pub credential_id: String,
     #[sea_orm(column_type = "JsonBinary")]
     pub credential_data: Json,
-    pub credential_id: DateTimeWithTimeZone,
     pub created_at: DateTimeWithTimeZone,
     pub user_id: Uuid,
 }
