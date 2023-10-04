@@ -98,8 +98,12 @@ async fn register_webauthn_finalize(
 }
 
 pub fn routes(cfg: &mut web::ServiceConfig) {
+    tracing::info!("registering authn routes");
+
     cfg.route("webauthn/register", web::patch().to(register_webauthn_finalize));
     cfg.route("webauthn/register", web::post().to(register_webauthn_initialize));
+
+    tracing::info!("authn routes registered");
 }
 
 fn build_login_session<'a>(user: &'a users::Model, jwt_secret: &'a EncodingKey, req: &'a HttpRequest) -> (String, Cookie<'a>, Cookie<'a>) {

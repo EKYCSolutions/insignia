@@ -129,6 +129,7 @@ async fn main() -> std::io::Result<()> {
             )
         )
         .service(web::scope("/users").configure(routes::users::routes))
+        .service(web::scope("/authn").configure(routes::authn::routes))
     })
     .bind((args.listen_addr, args.port))?
     .run()
