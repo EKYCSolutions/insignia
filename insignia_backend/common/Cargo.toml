@@ -1,0 +1,19 @@
+[package]
+name = "common"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde = { workspace = true }
+blake3 = { workspace = true }
+chrono = { workspace = true }
+sea-orm = { workspace = true }
+actix-web = { workspace = true }
+once_cell = { workspace = true }
+futures-util = { workspace = true }
+jsonwebtoken = { workspace = true }
+
+models = { path = "../models" }
+services = { path = "../services" }
