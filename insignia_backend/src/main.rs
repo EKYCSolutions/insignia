@@ -1,4 +1,5 @@
 
+use clap::Parser;
 use once_cell::sync::Lazy;
 use jsonwebtoken::{EncodingKey, DecodingKey};
 use tracing_subscriber::{filter, prelude::*};
@@ -64,7 +65,6 @@ async fn main() -> std::io::Result<()> {
             let cors_origins = args.cors_origins.clone();
 
             App::new()
-            .app_data(web::Data::new(args))
             .app_data(web::Data::new(db_conn.clone()))
             .wrap(Logger::default())
             .wrap(
@@ -98,7 +98,6 @@ async fn main() -> std::io::Result<()> {
         let cors_origins = args.cors_origins.clone();
 
         App::new()
-        .app_data(web::Data::new(args))
         .app_data(web::Data::new(db_conn.clone()))
         .wrap(Logger::default())
         .wrap(
