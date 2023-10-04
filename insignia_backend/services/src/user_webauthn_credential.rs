@@ -1,7 +1,7 @@
 
 use webauthn_rs::prelude::Passkey;
-use models::{users_webauthn_credentials::{Entity as UserWebauthnCredential, self}, users};
-use sea_orm::{DbErr, EntityTrait, DatabaseConnection, QueryFilter, QuerySelect, ColumnTrait, prelude::{Uuid, DateTimeWithTimeZone}, ActiveModelTrait, TransactionTrait};
+use models::users_webauthn_credentials::{Entity as UserWebauthnCredential, self};
+use sea_orm::{DbErr, EntityTrait, DatabaseConnection, QueryFilter, ColumnTrait, prelude::{Uuid, DateTimeWithTimeZone}, ActiveModelTrait, TransactionTrait};
 
 pub struct Query;
 
