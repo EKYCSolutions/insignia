@@ -1,0 +1,24 @@
+[package]
+name = "routes"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+sha2 = { workspace = true }
+serde = { workspace = true }
+nanoid = { workspace = true }
+cookie = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+sea-orm = { workspace = true }
+once_cell = { workspace = true }
+actix-web = { workspace = true }
+serde_json = { workspace = true }
+webauthn-rs = { workspace = true }
+jsonwebtoken = { workspace = true }
+actix-session = { workspace = true }
+
+models = { path = "../models" }
+services = { path = "../services" }

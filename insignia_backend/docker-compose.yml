@@ -1,0 +1,29 @@
+version: '3.8'
+
+volumes:
+  insignia_db:
+  dragonflydb:
+
+services:
+  insignia_db:
+    image: postgres:16-alpine
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_USER: insignia
+      POSTGRES_PASSWORD: supersecurepw
+      POSTGRES_DATABASE: insignia
+    volumes:
+      - insignia_db:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready]
+      interval: 8s
+      timeout: 8s
+      retries: 8
+
+  dragonflydb:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.10.0
+    ports:
+      - 6379:6379
+    volumes:
+      - dragonflydb:/data
