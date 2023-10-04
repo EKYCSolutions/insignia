@@ -1443,6 +1443,7 @@ checksum = "23342abe12aba583913b2e62f22225ff9c950774065e4bfb61a19cd9770fec40"
 dependencies = [
  "futures-channel",
  "futures-core",
+ "futures-executor",
  "futures-io",
  "futures-sink",
  "futures-task",
@@ -1829,6 +1830,7 @@ dependencies = [
  "argon2",
  "chrono",
  "clap",
+ "futures",
  "jsonwebtoken",
  "once_cell",
  "redis",
@@ -3071,6 +3073,7 @@ name = "services"
 version = "0.1.0"
 dependencies = [
  "argon2",
+ "futures",
  "models",
  "nanoid",
  "sea-orm",
