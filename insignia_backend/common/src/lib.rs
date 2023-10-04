@@ -1,6 +1,6 @@
-
 use std::{pin::Pin, str::FromStr};
 
+use clap::Parser;
 use futures_util::Future;
 use once_cell::sync::Lazy;
 use sea_orm::prelude::Uuid;
@@ -112,4 +112,55 @@ pub fn build_token_context(
     .update(user.session_data.clone().as_bytes())
     .finalize()
     .to_string()
+}
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+pub struct Args {
+    #[arg(short, long, required = true, env = "INSIGNIA_MODE", value_parser = ["admin", "frontend"], help = "server mode to run in")]
+    mode: String,
+
+    #[arg(short, long, required = false, env = "INSIGNIA_PORT", default_value = "6969", help = "server port to listen on")]
+    port: u16,
+
+    #[arg(short, long, required = false, env = "INSIGNIA_LISTEN_ADDR", default_value = "127.0.0.1", help = "server address to listen on")]
+    listen_addr: String,
+
+    #[arg(long, required = false, env = "INSIGNIA_FRONTEND_URL", default_value = "http://127.0.0.1:6969", help = "frontend url to set as issuer and audience as first party")]
+    frontend_url: String,
+
+    #[arg(long, required = false, env = "INSIGNIA_LOG_LEVEL", value_parser = ["info", "debug"], default_value = "info", help = "set logging level")]
+    log_level: String,
+
+    #[arg(long, required = false, env = "INSIGNIA_CORS_ENABLED", default_value = "false", help = "whether to enable cors")]
+    is_cors_enabled: bool,
+
+    #[arg(long, required = false, env = "INSIGNIA_CORS_ORIGINS", default_value = "http://localhost:5173,http://localhost:8080", value_delimiter = ',', help = "cors origins for the server")]
+    cors_origins: Vec<String>,
+
+    #[arg(
+        long,
+        required = false,
+        env = "INSIGNIA_WEBAUTHN_RP_ID",
+        default_value = "localhost",
+        help = "unique identifier for relying party",
+        long_help = "should be domain of your identity website or root of your identity website"
+    )]
+    rp_id: String,
+
+    #[arg(
+        long,
+        required = false,
+        env = "INSIGNIA_WEBAUTHN_RP_ORIGIN",
+        default_value = "http://localhost:5173",
+        help = "origin of the replying party",
+        long_help = "should be url to your identity website, the domain should match the root of RP id or within subdomain of it"
+    )]
+    rp_origin: String,
+
+    #[arg(long, required = false, env = "INSIGNIA_DB_CONN_STR", default_value = "postgresql://insignia:supersecurepw@localhost/insignia", help = "postgres database connection string")]
+    db_conn_str: String,
+
+    #[arg(long, required = false, env = "INSIGNIA_DRAGONFLY_CONN_STR", default_value = "localhost:6379", help = "dragonflydb connection string")]
+    dragonflydb_conn_str: String,
 }
