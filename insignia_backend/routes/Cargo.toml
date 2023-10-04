@@ -20,5 +20,6 @@ webauthn-rs = { workspace = true }
 jsonwebtoken = { workspace = true }
 actix-session = { workspace = true }
 
+common = { path = "../common" }
 models = { path = "../models" }
 services = { path = "../services" }
