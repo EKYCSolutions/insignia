@@ -1,13 +1,21 @@
 
 use sea_orm::prelude::Uuid;
+use argon2::{PasswordHasher, PasswordVerifier};
 use actix_web::{web, HttpResponse, HttpRequest, cookie::SameSite};
 
 use common::UserContext;
-use models::user_info::{UserInfoRespDto, UserSessionRespDto};
+use models::{user_info::{UserInfoRespDto, UserSessionRespDto}, http_error::{AppHttpError, AppHttpErrorResponseDto}};
 
 #[derive(serde::Deserialize)]
 struct UserQueryDto {
     identifier: String,
+}
+
+#[derive(serde::Deserialize)]
+struct SetRecoveryDataReqDto {
+    salt: String,
+    part: String,
+    recovery_data: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -47,6 +55,67 @@ async fn create_user(body: web::Json<UserCreateReqDto>, db_conn: web::Data<sea_o
     }
 
     HttpResponse::Ok().json(UserCreateRespDto{ id: Uuid::new_v4() })
+}
+
+fn verify_recovery_data(user: &models::users::Model, input_recovery_data: &str) -> Result<bool, AppHttpError> {
+    let recovery_data = user.recovery_data.clone().unwrap();
+
+    let recovery_data: Vec<&str> = recovery_data
+        .split(".")
+        .collect();
+
+    if let Ok(salt) = argon2::password_hash::Salt::from_b64(recovery_data[0]) {
+        let recovery_data_hash = argon2::Argon2::default().hash_password(
+            input_recovery_data.as_bytes(),
+            salt
+        )?
+        .to_string();
+
+        let (_, part) = recovery_data_hash.split_at(recovery_data_hash.len() / 2);
+
+        let part = blake3::Hasher::new()
+            .update(part.as_bytes())
+            .finalize()
+            .to_string();
+
+        let hash = argon2::PasswordHash::new(&recovery_data[1])?;
+
+        if !argon2::Argon2::default().verify_password(
+            part.as_bytes(),
+            &hash
+        ).is_ok() {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
+async fn set_recovery_data(
+    user_context: UserContext,
+    db_conn: web::Data<sea_orm::DatabaseConnection>,
+    body: web::Json<SetRecoveryDataReqDto>
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
+    if user_context.is_jwt_verified {
+        let user = user_context.user.unwrap();
+
+        if user.recovery_data.is_some() {
+            if body.recovery_data.is_none() || !verify_recovery_data(&user, body.recovery_data.to_owned().unwrap().as_str())? {
+                return Ok(HttpResponse::Forbidden().finish());
+            }
+        }
+
+        if let Ok(()) = services::user::Mutation::set_recovery_data(
+            &db_conn,
+            user,
+            &body.salt,
+            &body.part
+        ).await {
+            return Ok(HttpResponse::NoContent().finish());
+        }
+    }
+
+    Ok(HttpResponse::Forbidden().finish())
 }
 
 async fn get_user_session(user_context: UserContext) -> HttpResponse {
@@ -108,6 +177,7 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
 
     cfg.route("session", web::get().to(get_user_session));
     cfg.route("session", web::delete().to(logout));
+    cfg.route("recovery-data", web::post().to(set_recovery_data));
 
     tracing::info!("users routes registered");
 }
