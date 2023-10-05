@@ -46,7 +46,7 @@ async fn register_webauthn_initialize(
             };
 
             session
-            .insert("webauthn-register", (&user.name, user.id, &body.display_name, registration))
+            .insert("webauthn-register", (&user.name, &body.display_name, user.id, registration))
             .expect("fail to save webauthn-register session");
 
             return HttpResponse::Ok().json(challenge);
