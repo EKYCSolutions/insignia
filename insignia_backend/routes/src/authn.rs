@@ -8,22 +8,33 @@ use sea_orm::prelude::Uuid;
 use cookie::time::OffsetDateTime;
 use chrono::{Utc, Days, Duration};
 use jsonwebtoken::{EncodingKey, DecodingKey};
+use services::user_webauthn_credential::UserWebauthnCredData;
 use actix_web::{web, HttpRequest, HttpResponse, cookie::Cookie};
-use webauthn_rs::{Webauthn, prelude::{RegisterPublicKeyCredential, PasskeyRegistration}};
+use webauthn_rs::{Webauthn, prelude::{RegisterPublicKeyCredential, PasskeyRegistration, PublicKeyCredential, Passkey, PasskeyAuthentication}};
 
 use models::users;
 
 #[derive(serde::Deserialize)]
-struct UserWebauthnCredAuthReqDto {
+struct UserWebauthnRegiserReqDto {
     user_id: Uuid,
     display_name: String,
+}
+
+#[derive(serde::Deserialize)]
+struct WebauthnLoginReqDto {
+    user_id: Uuid,
+}
+
+#[derive(serde::Serialize)]
+struct LoginRespDto {
+    access_token: String,
 }
 
 async fn register_webauthn_initialize(
     session: Session,
     webauthn: web::Data<Webauthn>,
     db_conn: web::Data<sea_orm::DatabaseConnection>,
-    body: web::Json<UserWebauthnCredAuthReqDto>
+    body: web::Json<UserWebauthnRegiserReqDto>
 ) -> HttpResponse {
     session.remove("webauthn-register");
 
@@ -89,7 +100,90 @@ async fn register_webauthn_finalize(
                 return HttpResponse::Ok()
                     .cookie(fgp)
                     .cookie(refresh_token)
-                    .body(token);
+                    .json(LoginRespDto{ access_token: token });
+            }
+        }
+    }
+
+    HttpResponse::UnprocessableEntity().finish()
+}
+
+async fn login_webauthn_initialize(
+    session: Session,
+    webauthn: web::Data<Webauthn>,
+    db_conn: web::Data<sea_orm::DatabaseConnection>,
+    body: web::Json<WebauthnLoginReqDto>
+) -> HttpResponse {
+    session.remove("webauthn-login");
+
+    if let Ok(creds) = services::user_webauthn_credential::Query::list_user_webauthn_cred(&db_conn, body.user_id).await {
+        let psk_creds = creds
+            .iter()
+            .map(|cred| {
+                serde_json::from_value(serde_json::from_value::<sea_orm::JsonValue>(cred.credential_data.clone()).unwrap()).unwrap()
+            })
+            .collect::<Vec<Passkey>>();
+
+        let Ok((challenge, auth)) =
+            webauthn.start_passkey_authentication(
+                psk_creds.as_slice()
+            ) else {
+                return HttpResponse::UnprocessableEntity().finish();
+            };
+
+        let creds: Vec<UserWebauthnCredData> =
+            creds
+            .iter()
+            .map(|c| UserWebauthnCredData::from(c.to_owned()))
+            .collect();
+        
+        session
+        .insert("webauthn-login", (body.user_id, creds, auth))
+        .expect("fail to save webauthn-login session");
+
+        return HttpResponse::Ok().json(challenge);
+    }
+
+    HttpResponse::UnprocessableEntity().finish()
+}
+
+async fn login_webauthn_finalize(
+    req: HttpRequest,
+    session: Session,
+    webauthn: web::Data<Webauthn>,
+    db_conn: web::Data<sea_orm::DatabaseConnection>,
+    jwt_secret: web::Data<&Lazy<(EncodingKey, DecodingKey)>>,
+    body: web::Json<PublicKeyCredential>
+) -> HttpResponse {
+    if let Some((user_id, creds, auth)) = session.get::<(Uuid, Vec<UserWebauthnCredData>, PasskeyAuthentication)>("webauthn-login").unwrap() {
+        session.remove("webauthn-login");
+
+        if let Ok(auth_result) = webauthn.finish_passkey_authentication(&body, &auth) {
+            let creds: Vec<(UserWebauthnCredData, Passkey)> =
+                creds
+                .iter()
+                .cloned()
+                .map(|cred| {
+                    let mut psk: Passkey = serde_json::from_value(cred.credential_data.clone()).unwrap();
+
+                    psk.update_credential(&auth_result);
+
+                    (cred, psk)
+                })
+                .collect();
+
+            if let Ok(true) = services::user_webauthn_credential::Mutation::update_webauthn_credentials_counter(&db_conn, creds).await {
+                let user =
+                    services::user::Query::get_user_info_by_id(&db_conn, user_id)
+                    .await
+                    .expect("fail to get user info by id");
+
+                let (token, refresh_token, fgp) = build_login_session(&user[0].0, &jwt_secret.0, &req);
+
+                return HttpResponse::Ok()
+                    .cookie(fgp)
+                    .cookie(refresh_token)
+                    .json(LoginRespDto{ access_token: token });
             }
         }
     }
@@ -100,8 +194,11 @@ async fn register_webauthn_finalize(
 pub fn routes(cfg: &mut web::ServiceConfig) {
     tracing::info!("registering authn routes");
 
-    cfg.route("webauthn/register", web::patch().to(register_webauthn_finalize));
     cfg.route("webauthn/register", web::post().to(register_webauthn_initialize));
+    cfg.route("webauthn/register", web::patch().to(register_webauthn_finalize));
+
+    cfg.route("webauthn/login", web::post().to(login_webauthn_initialize));
+    cfg.route("webauthn/login", web::patch().to(login_webauthn_finalize));
 
     tracing::info!("authn routes registered");
 }
@@ -142,7 +239,7 @@ fn build_login_session<'a>(user: &'a users::Model, jwt_secret: &'a EncodingKey, 
         ).expect("fail to create jwt token");
 
     let refresh_token = Cookie::build(
-            "__Secure-Refresh",
+            "__Host-Refresh",
             jsonwebtoken::encode(
                 &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::EdDSA),
                 &JwtClaims{
@@ -168,7 +265,7 @@ fn build_login_session<'a>(user: &'a users::Model, jwt_secret: &'a EncodingKey, 
         .finish();
 
     let fgp = Cookie::build(
-            "__Secure-Fgp",
+            "__Host-Fgp",
             fgp,
         )
         .path("/")
