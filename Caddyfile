@@ -1,0 +1,11 @@
+localhost:16969 {
+  tls internal
+
+  reverse_proxy localhost:6969
+}
+
+localhost:13000 {
+  tls internal
+
+  reverse_proxy localhost:3000
+}
