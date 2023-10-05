@@ -45,7 +45,7 @@ impl FromRequest for UserContext {
         req: &actix_web::HttpRequest,
         _payload: &mut actix_web::dev::Payload
     ) -> Self::Future {
-        if let Some(fgp) = req.cookie("__secure-fgp") {
+        if let Some(fgp) = req.cookie("__Host-Fgp") {
             if let Some(token_value) = req.headers().get("authorization") {
                 if token_value.to_str().unwrap().contains("Bearer ") {
                     let token_value = token_value.to_str().unwrap().split("Bearer ").collect::<Vec<&str>>()[1];
