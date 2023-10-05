@@ -2121,6 +2121,8 @@ dependencies = [
 name = "models"
 version = "0.1.0"
 dependencies = [
+ "actix-web",
+ "argon2",
  "sea-orm",
  "serde",
 ]
@@ -2732,6 +2734,8 @@ version = "0.1.0"
 dependencies = [
  "actix-session",
  "actix-web",
+ "argon2",
+ "blake3",
  "chrono",
  "common",
  "cookie 0.17.0",
@@ -3119,6 +3123,7 @@ name = "services"
 version = "0.1.0"
 dependencies = [
  "argon2",
+ "blake3",
  "futures",
  "models",
  "nanoid",
