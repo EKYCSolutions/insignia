@@ -57,6 +57,9 @@ async fn main() -> std::io::Result<()> {
         .await
         .expect("fail to connect to postgres");
 
+    tracing::info!("cors enabled - {}", args.is_cors_enabled);
+    tracing::info!("cors origins - {:?}", args.cors_origins);
+
     if &args.mode == "admin" {
         tracing::info!("starting insignia admin server");
         tracing::info!("listening on {}:{}", args.listen_addr, args.port);
@@ -96,6 +99,9 @@ async fn main() -> std::io::Result<()> {
         let dragonflydb_conn_str = args.dragonflydb_conn_str.clone();
 
         let cors_origins = args.cors_origins.clone();
+
+        tracing::info!("webauthn rp id - {}", args.rp_id);
+        tracing::info!("webauthn rp origin - {}", args.rp_origin);
 
         App::new()
         .app_data(web::Data::new(db_conn.clone()))
