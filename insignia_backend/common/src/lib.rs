@@ -129,6 +129,9 @@ pub struct Args {
     #[arg(long, required = false, env = "INSIGNIA_FRONTEND_URL", default_value = "http://127.0.0.1:6969", help = "frontend url to set as issuer and audience as first party")]
     pub frontend_url: String,
 
+    #[arg(long, required = false, env = "INSIGNIA_JWT_AUDIENCES", default_value = "http://127.0.0.1:6969,http://127.0.0.1:4000", help = "token audiences for first party")]
+    pub jwt_audiences: String,
+
     #[arg(long, required = false, env = "INSIGNIA_LOG_LEVEL", value_parser = ["info", "debug"], default_value = "info", help = "set logging level")]
     pub log_level: String,
 
