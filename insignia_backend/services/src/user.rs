@@ -73,4 +73,25 @@ impl Mutation {
 
         Ok(user.id)
     }
+
+    pub async fn set_recovery_data(db: &DatabaseConnection, user: models::users::Model, salt: &str, part: &str) -> Result<(), DbErr> {
+        let mut user: models::users::ActiveModel = user.into();
+
+        let h_salt = argon2::password_hash::SaltString::generate(
+            &mut argon2::password_hash::rand_core::OsRng
+        );
+
+        let part = argon2::Argon2::default().hash_password(
+            part.as_bytes(),
+            &h_salt
+        )
+        .expect("fail to hash the recovery data hash part")
+        .to_string();
+
+        user.recovery_data = sea_orm::ActiveValue::Set(Some(format!("{salt}.{part}")));
+
+        user.update(db).await?;
+
+        Ok(())
+    }
 }
