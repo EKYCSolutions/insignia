@@ -1,22 +1,21 @@
 
 use std::{ops::Add, env};
 
-use common::JwtClaims;
 use once_cell::sync::Lazy;
 use actix_session::Session;
 use sea_orm::prelude::Uuid;
 use cookie::time::OffsetDateTime;
 use chrono::{Utc, Days, Duration};
 use jsonwebtoken::{EncodingKey, DecodingKey};
-use services::user_webauthn_credential::UserWebauthnCredData;
 use actix_web::{web, HttpRequest, HttpResponse, cookie::Cookie};
 use webauthn_rs::{Webauthn, prelude::{RegisterPublicKeyCredential, PasskeyRegistration, PublicKeyCredential, Passkey, PasskeyAuthentication}};
 
 use models::users;
+use common::{JwtClaims, UserContext};
+use services::user_webauthn_credential::UserWebauthnCredData;
 
 #[derive(serde::Deserialize)]
 struct UserWebauthnRegiserReqDto {
-    user_id: Uuid,
     display_name: String,
 }
 
@@ -32,13 +31,27 @@ struct LoginRespDto {
 
 async fn register_webauthn_initialize(
     session: Session,
+    user_context: UserContext,
     webauthn: web::Data<Webauthn>,
     db_conn: web::Data<sea_orm::DatabaseConnection>,
     body: web::Json<UserWebauthnRegiserReqDto>
 ) -> HttpResponse {
+    let register_session = session.get::<String>("register").unwrap();
+
+    if !user_context.is_jwt_verified || register_session.is_none() {
+        return HttpResponse::Unauthorized().finish();
+    }
+
+    let user_id =
+        match (user_context.user, register_session) {
+            (Some(user), _) => Some(user.id),
+            (_, Some(user_id)) => Some(Uuid::from_slice(user_id.as_bytes()).unwrap()),
+            _ => None
+        };
+
     session.remove("webauthn-register");
 
-    if let Ok(u) = services::user::Query::get_user_info_by_id(&db_conn, body.user_id).await {
+    if let Ok(u) = services::user::Query::get_user_info_by_id(&db_conn, user_id.unwrap()).await {
         if u.len() > 0 {
             let (user, webauthn_creds) = &u[0];
 
@@ -53,7 +66,7 @@ async fn register_webauthn_initialize(
                     })
                     .collect()
             ) else {
-                return HttpResponse::UnprocessableEntity().finish();
+                return HttpResponse::InternalServerError().finish();
             };
 
             session
@@ -64,7 +77,7 @@ async fn register_webauthn_initialize(
         }
     }
 
-    HttpResponse::UnprocessableEntity().finish()
+    HttpResponse::Unauthorized().finish()
 }
 
 async fn register_webauthn_finalize(
