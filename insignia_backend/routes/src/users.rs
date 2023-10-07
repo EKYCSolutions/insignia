@@ -1,5 +1,6 @@
 
 use sea_orm::prelude::Uuid;
+use actix_session::Session;
 use argon2::{PasswordHasher, PasswordVerifier};
 use actix_web::{web, HttpResponse, HttpRequest, cookie::SameSite};
 
@@ -49,12 +50,20 @@ async fn get_user_info(query: web::Query<UserQueryDto>, db_conn: web::Data<sea_o
     HttpResponse::NotFound().finish()
 }
 
-async fn create_user(body: web::Json<UserCreateReqDto>, db_conn: web::Data<sea_orm::DatabaseConnection>) -> HttpResponse {
+async fn create_user(
+    session: Session,
+    body: web::Json<UserCreateReqDto>,
+    db_conn: web::Data<sea_orm::DatabaseConnection>
+) -> HttpResponse {
     if let Ok(user_id) = services::user::Mutation::create_user(&db_conn, &body.name, body.phone.to_owned(), body.email.to_owned(), body.password.to_owned()).await {
-        return HttpResponse::Ok().json(UserCreateRespDto{ id: user_id });
+        session
+        .insert("register", user_id)
+        .expect("fail to save register session");
+
+        return HttpResponse::NoContent().finish();
     }
 
-    HttpResponse::Ok().json(UserCreateRespDto{ id: Uuid::new_v4() })
+    HttpResponse::NoContent().finish()
 }
 
 fn verify_recovery_data(user: &models::users::Model, input_recovery_data: &str) -> Result<bool, AppHttpError> {
