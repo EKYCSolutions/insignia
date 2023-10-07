@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc, NaiveDateTime};
 use jsonwebtoken::{EncodingKey, DecodingKey, TokenData};
 use actix_web::{http::{Error, header::HeaderMap}, FromRequest};
 
-use models::users;
+use models::{users, users_webauthn_credentials};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 pub enum JwtType {
@@ -34,6 +34,7 @@ pub struct JwtClaims {
 pub struct UserContext {
     pub is_jwt_verified: bool,
     pub user: Option<users::Model>,
+    pub webauthn_credentials: Vec<users_webauthn_credentials::Model>
 }
 
 impl FromRequest for UserContext {
@@ -80,6 +81,7 @@ impl FromRequest for UserContext {
 
                             Ok(UserContext {
                                 user: Some(user[0].0.to_owned()),
+                                webauthn_credentials: user[0].1.to_owned(),
                                 is_jwt_verified: claims.typ == JwtType::Login && claims.ctx.unwrap() == token_ctx,
                             })
                         });
@@ -89,7 +91,7 @@ impl FromRequest for UserContext {
         }
 
         Box::pin(async move {
-            Ok(UserContext { user: None, is_jwt_verified: false })
+            Ok(UserContext { user: None, webauthn_credentials: vec![], is_jwt_verified: false })
         })
     }
 }
