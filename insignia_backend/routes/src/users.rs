@@ -57,15 +57,17 @@ async fn get_user_info(query: web::Query<UserQueryDto>, db_conn: web::Data<sea_o
 
 async fn create_user(
     session: Session,
-    body: web::Json<UserCreateReqDto>,
+    body: web::Form<UserCreateReqDto>,
     db_conn: web::Data<sea_orm::DatabaseConnection>
 ) -> HttpResponse {
     if let Ok(user_id) = services::user::Mutation::create_user(&db_conn, &body.name, body.phone.to_owned(), body.email.to_owned(), body.password.to_owned()).await {
+        if body.password.is_some() {
+            return HttpResponse::NoContent().finish();
+        }
+
         session
         .insert("register", user_id)
         .expect("fail to save register session");
-
-        return HttpResponse::NoContent().finish();
     }
 
     HttpResponse::NoContent().finish()
@@ -108,7 +110,7 @@ fn verify_recovery_data(user: &models::users::Model, input_recovery_data: &str) 
 async fn set_recovery_data(
     user_context: UserContext,
     db_conn: web::Data<sea_orm::DatabaseConnection>,
-    body: web::Json<SetRecoveryDataReqDto>
+    body: web::Form<SetRecoveryDataReqDto>
 ) -> Result<HttpResponse, AppHttpErrorResponseDto> {
     if user_context.is_jwt_verified {
         let user = user_context.user.unwrap();
