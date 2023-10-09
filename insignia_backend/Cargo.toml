@@ -11,7 +11,6 @@ opt-level = 3
 codegen-units = 1
 
 [workspace.dependencies]
-awc = "3.2.0"
 sha2 = "0.10.8"
 actix = "0.13.1"
 redis = "0.23.3"
@@ -29,6 +28,7 @@ actix-utils = "3.0.1"
 serde_json = "1.0.107"
 jsonwebtoken = "8.3.0"
 futures-util = "0.3.28"
+awc = { version = "3.2.0", features = ["rustls"] }
 serde = { version = "1.0.188", features = ["derive"] }
 cookie = { version = "0.17.0", features = ["secure"] }
 clap = { version = "4.4.6", features = ["derive", "env"] }
