@@ -256,4 +256,13 @@ pub struct Args {
 
     #[arg(long, required = false, env = "INSIGNIA_DRAGONFLY_CONN_STR", default_value = "localhost:6379", help = "dragonflydb connection string")]
     pub dragonflydb_conn_str: String,
+
+    #[arg(long, required = false, env = "INSIGNIA_TWILIO_VERIFY_SID", help = "twilio verify sid")]
+    pub twilio_verify_sid: String,
+
+    #[arg(long, required = false, env = "INSIGNIA_TWILIO_ACCOUNT_SID", help = "twilio account sid")]
+    pub twilio_account_sid: String,
+
+    #[arg(long, required = false, env = "INSIGNIA_TWILIO_AUTH_TOKEN", help = "twilio auth token")]
+    pub twilio_auth_token: String,
 }
