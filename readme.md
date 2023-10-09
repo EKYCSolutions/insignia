@@ -14,5 +14,9 @@
     - [ ] facebook provider
 - [ ] 2fa
 - [ ] graphql api
-- [ ] web sdk
-- [ ] mobile sdk
+- [ ] server sdk
+  - [ ] rust
+  - [ ] elixir
+- [ ] frontend sdk
+  - [ ] web sdk
+  - [ ] mobile sdk
