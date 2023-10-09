@@ -120,7 +120,7 @@ impl SMSOtp for CoreSMSOtp {
     }
 }
 
-#[derive(Message)]
+#[derive(Message, Debug)]
 #[rtype(result = "Result<SMSOtpResult, SMSOtpError>")]
 pub enum CoreSMSOtpCommand {
     Send(String),
