@@ -5,6 +5,7 @@
 - [ ] passkeys
 - [ ] passwords
 - [ ] phone sms login
+  - [ ] twilio
 - [ ] oauth provider
 - [ ] oauth logins
     - [ ] generic provider
@@ -12,5 +13,6 @@
     - [ ] google provider
     - [ ] facebook provider
 - [ ] 2fa
+- [ ] graphql api
 - [ ] web sdk
 - [ ] mobile sdk
