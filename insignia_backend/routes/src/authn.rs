@@ -1,18 +1,13 @@
 
-use std::{ops::Add, env};
-
 use once_cell::sync::Lazy;
 use actix_session::Session;
 use sea_orm::prelude::Uuid;
-use cookie::time::OffsetDateTime;
-use chrono::{Utc, Days, Duration};
 use jsonwebtoken::{EncodingKey, DecodingKey};
-use actix_web::{web, HttpRequest, HttpResponse, cookie::Cookie};
+use actix_web::{web, HttpRequest, HttpResponse};
 use webauthn_rs::{Webauthn, prelude::{RegisterPublicKeyCredential, PasskeyRegistration, PublicKeyCredential, Passkey, PasskeyAuthentication}};
 
-use models::users;
-use common::{JwtClaims, UserContext};
-use services::user_webauthn_credential::UserWebauthnCredData;
+use common::{UserContext, build_login_session};
+use services::{user_webauthn_credential::UserWebauthnCredData, sms_otp::CoreSMSOtp};
 
 #[derive(serde::Deserialize)]
 struct UserWebauthnRegiserReqDto {
@@ -24,9 +19,15 @@ struct WebauthnLoginReqDto {
     user_id: Uuid,
 }
 
-#[derive(serde::Serialize)]
-struct LoginRespDto {
-    access_token: String,
+#[derive(serde::Deserialize)]
+struct PhoneOtpLoginReqDto {
+    user_id: Uuid,
+}
+
+#[derive(serde::Deserialize)]
+struct VerifyPhoneOtpReqDto {
+    code: String,
+    phone: String,
 }
 
 async fn register_webauthn_initialize(
@@ -42,39 +43,43 @@ async fn register_webauthn_initialize(
         return HttpResponse::Unauthorized().finish();
     }
 
-    let user_id =
+    let user =
         match (user_context.user, register_session) {
-            (Some(user), _) => Some(user.id),
-            (_, Some(user_id)) => Some(Uuid::from_slice(user_id.as_bytes()).unwrap()),
+            (Some(user), _) => Some((user, user_context.webauthn_credentials)),
+            (_, Some(user_id)) => {
+                if let Ok(u) = services::user::Query::get_user_info_by_id(&db_conn, Uuid::from_slice(user_id.as_bytes()).unwrap()).await {
+                    Some(u[0].to_owned())
+                } else {
+                    None
+                }
+            }
             _ => None
         };
 
     session.remove("webauthn-register");
 
-    if let Ok(u) = services::user::Query::get_user_info_by_id(&db_conn, user_id.unwrap()).await {
-        if u.len() > 0 {
-            let (user, webauthn_creds) = &u[0];
+    if user.is_some() {
+        let (user, webauthn_creds) = user.unwrap();
 
-            let Ok((challenge, registration)) = webauthn.start_passkey_registration(
-                user.id,
-                &user.name,
-                &body.display_name,
-                webauthn_creds
-                    .iter()
-                    .map(|wc| {
-                        Some(webauthn_rs::prelude::Base64UrlSafeData::from(wc.credential_id.clone().into_bytes()))
-                    })
-                    .collect()
-            ) else {
-                return HttpResponse::InternalServerError().finish();
-            };
+        let Ok((challenge, registration)) = webauthn.start_passkey_registration(
+            user.id,
+            &user.name,
+            &body.display_name,
+            webauthn_creds
+                .iter()
+                .map(|wc| {
+                    Some(webauthn_rs::prelude::Base64UrlSafeData::from(wc.credential_id.clone().into_bytes()))
+                })
+                .collect()
+        ) else {
+            return HttpResponse::InternalServerError().finish();
+        };
 
-            session
-            .insert("webauthn-register", (&user.name, &body.display_name, user.id, registration))
-            .expect("fail to save webauthn-register session");
+        session
+        .insert("webauthn-register", (&user.name, &body.display_name, user.id, registration))
+        .expect("fail to save webauthn-register session");
 
-            return HttpResponse::Ok().json(challenge);
-        }
+        return HttpResponse::Ok().json(challenge);
     }
 
     HttpResponse::Unauthorized().finish()
@@ -113,7 +118,7 @@ async fn register_webauthn_finalize(
                 return HttpResponse::Ok()
                     .cookie(fgp)
                     .cookie(refresh_token)
-                    .json(LoginRespDto{ access_token: token });
+                    .json(models::login::LoginRespDto{ access_token: token });
             }
         }
     }
@@ -191,12 +196,12 @@ async fn login_webauthn_finalize(
                     .await
                     .expect("fail to get user info by id");
 
-                let (token, refresh_token, fgp) = build_login_session(&user[0].0, &jwt_secret.0, &req);
+                let (token, refresh_token, fgp) = common::build_login_session(&user[0].0, &jwt_secret.0, &req);
 
                 return HttpResponse::Ok()
                     .cookie(fgp)
                     .cookie(refresh_token)
-                    .json(LoginRespDto{ access_token: token });
+                    .json(models::login::LoginRespDto{ access_token: token });
             }
         }
     }
@@ -204,8 +209,131 @@ async fn login_webauthn_finalize(
     HttpResponse::UnprocessableEntity().finish()
 }
 
+async fn verify_phone_otp_attempt(
+    session: Session,
+    user_context: UserContext,
+    db_conn: web::Data<sea_orm::DatabaseConnection>,
+    sms_otp_service: web::Data<actix::Addr<CoreSMSOtp>>
+) -> HttpResponse {
+    let register_session = session.get::<String>("register").unwrap();
+
+    if !user_context.is_jwt_verified || register_session.is_none() {
+        return HttpResponse::Unauthorized().finish();
+    }
+
+    let phone =
+        match (user_context.user, register_session) {
+            (Some(u), _) => u.phone,
+            (_, Some(user_id)) => {
+                let user = services::user::Query::get_user_info_by_id(&db_conn, Uuid::from_slice(user_id.as_bytes()).unwrap())
+                    .await
+                    .expect("fail to read user from database");
+
+                let user = user[0].0.to_owned();
+
+                user.phone
+            },
+            _ => None
+        };
+
+    if let Some(phone) = phone {
+        let _ =
+            sms_otp_service
+                .send(services::sms_otp::CoreSMSOtpCommand::Send(phone))
+                .await
+                .expect("fail to send sms otp");
+    }
+
+    HttpResponse::NoContent().finish()
+}
+
+async fn verify_phone_otp(
+    body: web::Form<VerifyPhoneOtpReqDto>,
+    sms_otp_service: web::Data<actix::Addr<CoreSMSOtp>>
+) -> HttpResponse {
+    let result = sms_otp_service
+        .send(services::sms_otp::CoreSMSOtpCommand::Verify(body.phone.to_owned(), body.code.to_owned()))
+        .await
+        .expect("fail to verify sms otp");
+
+    if let Ok(result) = result {
+        return match result {
+            services::sms_otp::SMSOtpResult::VerifyResult(true) =>
+                HttpResponse::NoContent().finish(),
+            _ =>
+                HttpResponse::UnprocessableEntity().finish()
+        };
+    }
+
+    HttpResponse::Unauthorized().finish()
+}
+
+async fn login_phone_otp_attempt(
+    db_conn: web::Data<sea_orm::DatabaseConnection>,
+    body: web::Form<PhoneOtpLoginReqDto>,
+    sms_otp_service: web::Data<actix::Addr<CoreSMSOtp>>
+) -> HttpResponse {
+    let user = services::user::Query::get_user_info_by_id(&db_conn, body.user_id)
+        .await
+        .expect("fail to get user by id");
+
+    let user = user[0].0.to_owned();
+
+    if user.phone.is_some() {
+        let _ =
+            sms_otp_service
+                .send(services::sms_otp::CoreSMSOtpCommand::Send(user.phone.unwrap()))
+                .await
+                .expect("fail to send sms otp");
+    }
+
+    HttpResponse::NoContent().finish()
+}
+
+async fn login_phone_otp(
+    req: HttpRequest,
+    body: web::Form::<VerifyPhoneOtpReqDto>,
+    db_conn: web::Data::<sea_orm::DatabaseConnection>,
+    sms_otp_service: web::Data<actix::Addr<CoreSMSOtp>>,
+    jwt_secret: web::Data<&Lazy<(EncodingKey, DecodingKey)>>
+) -> HttpResponse {
+    let result =
+        sms_otp_service
+            .send(services::sms_otp::CoreSMSOtpCommand::Verify(body.phone.clone(), body.code.to_owned()))
+            .await
+            .expect("fail to verify sms otp");
+
+    if let Ok(result) = result {
+        return match result {
+            services::sms_otp::SMSOtpResult::VerifyResult(true) => {
+                let user =
+                    services::user::Query::get_user_info(&db_conn, &body.phone)
+                    .await
+                    .expect("fail to get user info by id");
+
+                let (token, refresh_token, fgp) = build_login_session(&user[0].0, &jwt_secret.0, &req);
+
+                return HttpResponse::Ok()
+                    .cookie(fgp)
+                    .cookie(refresh_token)
+                    .json(models::login::LoginRespDto{ access_token: token });
+            },
+            _ =>
+                HttpResponse::Unauthorized().finish()
+        }
+    }
+
+    HttpResponse::Unauthorized().finish()
+}
+
 pub fn routes(cfg: &mut web::ServiceConfig) {
     tracing::info!("registering authn routes");
+
+    cfg.route("phone-otp/login", web::patch().to(login_phone_otp));
+    cfg.route("phone-otp/login", web::post().to(login_phone_otp_attempt));
+
+    cfg.route("verify-phone-otp", web::patch().to(verify_phone_otp));
+    cfg.route("verify-phone-otp", web::post().to(verify_phone_otp_attempt));
 
     cfg.route("webauthn/register", web::post().to(register_webauthn_initialize));
     cfg.route("webauthn/register", web::patch().to(register_webauthn_finalize));
@@ -214,79 +342,4 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
     cfg.route("webauthn/login", web::patch().to(login_webauthn_finalize));
 
     tracing::info!("authn routes registered");
-}
-
-fn build_login_session<'a>(user: &'a users::Model, jwt_secret: &'a EncodingKey, req: &'a HttpRequest) -> (String, Cookie<'a>, Cookie<'a>) {
-    let now = Utc::now();
-
-    let access_expiry = now.add(Duration::minutes(16));
-
-    let refresh_expiry = now.add(Days::new(8));
-
-    let jwt_id = nanoid::nanoid!(32);
-
-    let fgp = nanoid::nanoid!(32);
-
-    let token_context = common::build_token_context(user, &req.headers(), &fgp, &now, &access_expiry);
-
-    let frontend_url = env::var("INSIGNIA_FRONTEND_URL").expect("fail to read from env var");
-
-    let aud = frontend_url.clone();
-    let iss = aud.clone();
-
-    let token = jsonwebtoken::encode(
-            &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::EdDSA),
-            &JwtClaims{
-                id: jwt_id,
-                sub: user.id.to_string(),
-                iat: now.timestamp() as usize,
-                nbf: now.timestamp() as usize,
-                exp: access_expiry.timestamp() as usize,
-                typ: common::JwtType::Login,
-                aud: aud.clone(),
-                iss: iss.clone(),
-                ctx: Some(token_context.clone()),
-                scope: None,
-            },
-            jwt_secret
-        ).expect("fail to create jwt token");
-
-    let refresh_token = Cookie::build(
-            "__Host-Refresh",
-            jsonwebtoken::encode(
-                &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::EdDSA),
-                &JwtClaims{
-                    id: nanoid::nanoid!(32),
-                    sub: user.id.to_string(),
-                    iat: now.timestamp() as usize,
-                    nbf: now.timestamp() as usize,
-                    exp: refresh_expiry.timestamp() as usize,
-                    typ: common::JwtType::Refresh,
-                    aud: aud,
-                    iss: iss,
-                    ctx: Some(token_context),
-                    scope: None,
-                },
-                jwt_secret
-            ).expect("fail to create jwt token")
-        )
-        .path("/")
-        .expires(OffsetDateTime::from_unix_timestamp(refresh_expiry.timestamp()).unwrap())
-        .same_site(actix_web::cookie::SameSite::Strict)
-        .http_only(true)
-        .secure(true)
-        .finish();
-
-    let fgp = Cookie::build(
-            "__Host-Fgp",
-            fgp,
-        )
-        .path("/")
-        .expires(OffsetDateTime::from_unix_timestamp(refresh_expiry.timestamp()).unwrap())
-        .same_site(actix_web::cookie::SameSite::Strict)
-        .http_only(true)
-        .secure(true)
-        .finish();
-
-    (token, refresh_token, fgp)
 }
