@@ -212,6 +212,7 @@ dependencies = [
  "actix-service",
  "actix-utils",
  "futures-core",
+ "http",
  "impl-more",
  "pin-project-lite",
  "rustls",
@@ -701,6 +702,39 @@ name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
+
+[[package]]
+name = "awc"
+version = "3.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7fa3c705a9c7917ac0f41c0757a0a747b43bbc29b0b364b081bd7c5fc67fb223"
+dependencies = [
+ "actix-codec",
+ "actix-http",
+ "actix-rt",
+ "actix-service",
+ "actix-tls",
+ "actix-utils",
+ "base64 0.21.4",
+ "bytes",
+ "cfg-if",
+ "cookie 0.16.2",
+ "derive_more",
+ "futures-core",
+ "futures-util",
+ "h2",
+ "http",
+ "itoa",
+ "log",
+ "mime",
+ "percent-encoding",
+ "pin-project-lite",
+ "rand",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "tokio",
+]
 
 [[package]]
 name = "backoff"
@@ -1872,6 +1906,7 @@ dependencies = [
  "actix-utils",
  "actix-web",
  "argon2",
+ "awc",
  "blake3",
  "chrono",
  "clap",
@@ -1885,6 +1920,7 @@ dependencies = [
  "sea-orm",
  "serde",
  "serde_json",
+ "services",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -2734,6 +2770,7 @@ dependencies = [
 name = "routes"
 version = "0.1.0"
 dependencies = [
+ "actix",
  "actix-session",
  "actix-web",
  "argon2",
@@ -3124,7 +3161,10 @@ dependencies = [
 name = "services"
 version = "0.1.0"
 dependencies = [
+ "actix",
+ "actix-utils",
  "argon2",
+ "awc",
  "blake3",
  "futures",
  "futures-util",
