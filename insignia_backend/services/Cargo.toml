@@ -6,6 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+awc = { workspace = true }
+actix = { workspace = true }
 serde = { workspace = true }
 blake3 = { workspace = true }
 argon2 = { workspace = true }
@@ -13,6 +15,8 @@ nanoid = { workspace = true }
 sea-orm = { workspace = true }
 futures = { workspace = true }
 serde_json = { workspace = true }
+actix-utils = { workspace = true }
 webauthn-rs = { workspace = true }
+futures-util = { workspace = true }
 
 models = { path = "../models" }
