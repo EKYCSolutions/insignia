@@ -1,12 +1,13 @@
-use std::{pin::Pin, str::FromStr};
+use std::{pin::Pin, str::FromStr, env, ops::Add};
 
 use clap::Parser;
 use futures_util::Future;
 use once_cell::sync::Lazy;
 use sea_orm::prelude::Uuid;
-use chrono::{DateTime, Utc, NaiveDateTime};
+use cookie::time::OffsetDateTime;
 use jsonwebtoken::{EncodingKey, DecodingKey, TokenData};
-use actix_web::{http::{Error, header::HeaderMap}, FromRequest};
+use chrono::{DateTime, Utc, NaiveDateTime, Duration, Days};
+use actix_web::{http::{Error, header::HeaderMap}, FromRequest, HttpRequest, cookie::Cookie};
 
 use models::{users, users_webauthn_credentials};
 
@@ -46,10 +47,10 @@ impl FromRequest for UserContext {
         req: &actix_web::HttpRequest,
         _payload: &mut actix_web::dev::Payload
     ) -> Self::Future {
-        if let Some(fgp) = req.cookie("__Host-Fgp") {
-            if let Some(token_value) = req.headers().get("authorization") {
-                if token_value.to_str().unwrap().contains("Bearer ") {
-                    let token_value = token_value.to_str().unwrap().split("Bearer ").collect::<Vec<&str>>()[1];
+        let auth_data =
+            match (req.cookie("__Host-Fgp"), req.headers().get("authorization")) {
+                (Some(fgp), Some(token_value)) => {
+                    let token_value = token_value.to_str().unwrap().replace("Bearer ", "");
 
                     let key =
                         req
@@ -57,43 +58,130 @@ impl FromRequest for UserContext {
                         .expect("fail to get jwt secret key for user context");
 
                     if let Ok(TokenData{ claims, header: _ }) = jsonwebtoken::decode::<JwtClaims>(
-                        token_value,
+                        &token_value,
                         &key.1,
                         &jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::EdDSA)
                     ) {
-                        let db_conn = req.app_data::<actix_web::web::Data<sea_orm::DatabaseConnection>>().unwrap().clone();
-
-                        let headers = req.headers().clone();
-
-                        return Box::pin(async move {
-                            let user = services::user::Query::get_user_info_by_id(
-                                &db_conn,
-                                Uuid::from_str(&claims.sub).unwrap()
-                            ).await.unwrap();
-
-                            let token_ctx = build_token_context(
-                                &user[0].0,
-                                &headers,
-                                fgp.value(),
-                                &DateTime::<Utc>::from_naive_utc_and_offset(NaiveDateTime::from_timestamp_opt(claims.iat as i64, 0).unwrap(), Utc),
-                                &DateTime::<Utc>::from_naive_utc_and_offset(NaiveDateTime::from_timestamp_opt(claims.exp as i64, 0).unwrap(), Utc)
-                            );
-
-                            Ok(UserContext {
-                                user: Some(user[0].0.to_owned()),
-                                webauthn_credentials: user[0].1.to_owned(),
-                                is_jwt_verified: claims.typ == JwtType::Login && claims.ctx.unwrap() == token_ctx,
-                            })
-                        });
+                        Some((fgp, claims))
+                    } else {
+                        None
                     }
                 }
-            }
+                _ => None,
+            };
+
+        if auth_data.is_some() {
+            let (fgp, claims) = auth_data.unwrap();
+
+            let db_conn = req.app_data::<actix_web::web::Data<sea_orm::DatabaseConnection>>().unwrap().clone();
+
+            let headers = req.headers().clone();
+
+            return Box::pin(async move {
+                let user = services::user::Query::get_user_info_by_id(
+                    &db_conn,
+                    Uuid::from_str(&claims.sub).unwrap()
+                ).await.unwrap();
+
+                let token_ctx = build_token_context(
+                    &user[0].0,
+                    &headers,
+                    fgp.value(),
+                    &DateTime::<Utc>::from_naive_utc_and_offset(NaiveDateTime::from_timestamp_opt(claims.iat as i64, 0).unwrap(), Utc),
+                    &DateTime::<Utc>::from_naive_utc_and_offset(NaiveDateTime::from_timestamp_opt(claims.exp as i64, 0).unwrap(), Utc)
+                );
+
+                Ok(UserContext {
+                    user: Some(user[0].0.to_owned()),
+                    webauthn_credentials: user[0].1.to_owned(),
+                    is_jwt_verified: claims.typ == JwtType::Login && claims.ctx.unwrap() == token_ctx,
+                })
+            });
         }
 
         Box::pin(async move {
             Ok(UserContext { user: None, webauthn_credentials: vec![], is_jwt_verified: false })
         })
     }
+}
+
+pub fn build_login_session<'a>(
+    user: &'a users::Model,
+    jwt_secret: &'a EncodingKey,
+    req: &'a HttpRequest,
+) -> (String, Cookie<'a>, Cookie<'a>) {
+    let now = Utc::now();
+
+    let access_expiry = now.add(Duration::minutes(16));
+
+    let refresh_expiry = now.add(Days::new(8));
+
+    let jwt_id = nanoid::nanoid!(32);
+
+    let fgp = nanoid::nanoid!(32);
+
+    let token_context = build_token_context(user, &req.headers(), &fgp, &now, &access_expiry);
+
+    let frontend_url = env::var("INSIGNIA_FRONTEND_URL").expect("fail to read from env var");
+
+    let aud = frontend_url.clone();
+    let iss = aud.clone();
+
+    let token = jsonwebtoken::encode(
+            &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::EdDSA),
+            &JwtClaims{
+                id: jwt_id,
+                sub: user.id.to_string(),
+                iat: now.timestamp() as usize,
+                nbf: now.timestamp() as usize,
+                exp: access_expiry.timestamp() as usize,
+                typ: JwtType::Login,
+                aud: aud.clone(),
+                iss: iss.clone(),
+                ctx: Some(token_context.clone()),
+                scope: None,
+            },
+            jwt_secret
+        ).expect("fail to create jwt token");
+
+    let refresh_token = Cookie::build(
+            "__Host-Refresh",
+            jsonwebtoken::encode(
+                &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::EdDSA),
+                &JwtClaims{
+                    id: nanoid::nanoid!(32),
+                    sub: user.id.to_string(),
+                    iat: now.timestamp() as usize,
+                    nbf: now.timestamp() as usize,
+                    exp: refresh_expiry.timestamp() as usize,
+                    typ: JwtType::Refresh,
+                    aud: aud,
+                    iss: iss,
+                    ctx: Some(token_context),
+                    scope: None,
+                },
+                jwt_secret
+            ).expect("fail to create jwt token")
+        )
+        .path("/")
+        .expires(OffsetDateTime::from_unix_timestamp(refresh_expiry.timestamp()).unwrap())
+        .same_site(actix_web::cookie::SameSite::Strict)
+        .http_only(true)
+        .secure(true)
+        .finish();
+
+    let fgp = Cookie::build(
+            "__Host-Fgp",
+            fgp,
+        )
+        .path("/")
+        .expires(OffsetDateTime::from_unix_timestamp(refresh_expiry.timestamp()).unwrap())
+        .same_site(actix_web::cookie::SameSite::Strict)
+        .http_only(true)
+        .secure(true)
+        .finish();
+
+    (token, refresh_token, fgp)
 }
 
 pub fn build_token_context(
