@@ -1,4 +1,5 @@
 
+use actix::Actor;
 use clap::Parser;
 use once_cell::sync::Lazy;
 use jsonwebtoken::{EncodingKey, DecodingKey};
@@ -56,6 +57,10 @@ async fn main() -> std::io::Result<()> {
     let db_conn = sea_orm::Database::connect(args.db_conn_str)
         .await
         .expect("fail to connect to postgres");
+
+    let sms_otp_service = services::sms_otp::CoreSMSOtp::new_twilio(&args.twilio_account_sid, &args.twilio_auth_token, &args.twilio_verify_sid);
+
+    let sms_otp_service = sms_otp_service.start();
 
     tracing::info!("cors enabled - {}", args.is_cors_enabled);
     tracing::info!("cors origins - {:?}", args.cors_origins);
@@ -123,6 +128,7 @@ async fn main() -> std::io::Result<()> {
             .allowed_headers(vec![http::header::AUTHORIZATION,  http::header::ACCEPT, http::header::CONTENT_TYPE])
             .supports_credentials()
         )
+        .app_data(web::Data::new(sms_otp_service.to_owned()))
         .app_data(web::Data::new(&JWT_SECRET))
         .app_data(web::Data::new(WebauthnBuilder::new(&args.rp_id, &Url::parse(&args.rp_origin).expect("invalid webauthn rp origin"))
                 .expect("invalid webauthn config")
