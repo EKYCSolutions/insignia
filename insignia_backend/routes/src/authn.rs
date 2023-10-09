@@ -332,8 +332,8 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
     cfg.route("phone-otp/login", web::patch().to(login_phone_otp));
     cfg.route("phone-otp/login", web::post().to(login_phone_otp_attempt));
 
-    cfg.route("verify-phone-otp", web::patch().to(verify_phone_otp));
-    cfg.route("verify-phone-otp", web::post().to(verify_phone_otp_attempt));
+    cfg.route("verify-phone", web::patch().to(verify_phone_otp));
+    cfg.route("verify-phone", web::post().to(verify_phone_otp_attempt));
 
     cfg.route("webauthn/register", web::post().to(register_webauthn_initialize));
     cfg.route("webauthn/register", web::patch().to(register_webauthn_finalize));
