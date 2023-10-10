@@ -8,12 +8,22 @@ use sea_orm::{
     QueryFilter,
     ColumnTrait,
     ActiveModelTrait,
-    DatabaseConnection, prelude::Uuid,
+    DatabaseConnection, prelude::{Uuid, DateTimeWithTimeZone},
 };
 
 pub struct Query;
 
 pub struct Mutation;
+
+pub struct UserUpdate {
+    pub name: Option<String>,
+    pub phone: Option<String>,
+    pub email: Option<String>,
+    pub password: Option<String>,
+    pub session_data: Option<String>,
+    pub email_verified_at: Option<DateTimeWithTimeZone>,
+    pub phone_verified_at: Option<DateTimeWithTimeZone>,
+}
 
 impl Query {
     pub async fn get_existence(db: &DatabaseConnection, identifier: &str) -> Result<Option<users::Model>, DbErr> {
@@ -61,9 +71,9 @@ impl Mutation {
             ..Default::default()
         };
 
-        let salt = argon2::password_hash::SaltString::generate(&mut argon2::password_hash::rand_core::OsRng);
-
         if let Some(password) = password {
+            let salt = argon2::password_hash::SaltString::generate(&mut argon2::password_hash::rand_core::OsRng);
+
             user.password = sea_orm::ActiveValue::Set(
                 Some(argon2::Argon2::default().hash_password(password.as_bytes(), &salt).expect("fail to hash password").to_string())
             );
@@ -72,6 +82,51 @@ impl Mutation {
         let user = user.insert(db).await?;
 
         Ok(user.id)
+    }
+
+    pub async fn update_user(db: &DatabaseConnection, user: models::users::Model, updates: UserUpdate) -> Result<(), DbErr> {
+        let mut user: models::users::ActiveModel = user.into();
+
+        if updates.name.is_some() {
+            user.name = sea_orm::ActiveValue::Set(updates.name.unwrap());
+        }
+
+        if updates.session_data.is_some() {
+            user.session_data = sea_orm::ActiveValue::Set(updates.session_data.unwrap());
+        }
+
+        if updates.email_verified_at.is_some() {
+            user.email_verified_at = sea_orm::ActiveValue::Set(updates.email_verified_at);
+        }
+
+        if updates.phone_verified_at.is_some() {
+            user.phone_verified_at = sea_orm::ActiveValue::Set(updates.phone_verified_at);
+        }
+
+        if updates.email.is_some() {
+            user.email = sea_orm::ActiveValue::Set(updates.email);
+            user.email_verified_at = sea_orm::ActiveValue::Set(None);
+        }
+
+        if updates.phone.is_some() {
+            user.phone = sea_orm::ActiveValue::Set(updates.phone);
+            user.phone_verified_at = sea_orm::ActiveValue::Set(None);
+        }
+
+        if updates.password.is_some() {
+            let salt = argon2::password_hash::SaltString::generate(&mut argon2::password_hash::rand_core::OsRng);
+
+            user.password = sea_orm::ActiveValue::Set(Some(
+                argon2::Argon2::default()
+                    .hash_password(updates.password.unwrap().as_bytes(), &salt)
+                    .expect("fail to hash password")
+                    .to_string()
+            ));
+        }
+
+        user.update(db).await?;
+
+        Ok(())
     }
 
     pub async fn set_recovery_data(db: &DatabaseConnection, user: models::users::Model, salt: &str, part: &str) -> Result<(), DbErr> {
