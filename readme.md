@@ -3,9 +3,10 @@
 
 ## Features
 - [ ] passkeys
-- [ ] passwords
+- [x] passwords
+- [ ] magic links
 - [ ] phone sms login
-  - [ ] twilio
+  - [x] twilio
 - [ ] oauth provider
 - [ ] oauth logins
     - [ ] generic provider
