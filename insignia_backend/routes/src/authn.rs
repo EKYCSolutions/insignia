@@ -2,6 +2,7 @@
 use once_cell::sync::Lazy;
 use actix_session::Session;
 use sea_orm::prelude::Uuid;
+use argon2::PasswordVerifier;
 use jsonwebtoken::{EncodingKey, DecodingKey};
 use actix_web::{web, HttpRequest, HttpResponse};
 use webauthn_rs::{Webauthn, prelude::{RegisterPublicKeyCredential, PasskeyRegistration, PublicKeyCredential, Passkey, PasskeyAuthentication}};
@@ -28,6 +29,12 @@ struct PhoneOtpLoginReqDto {
 struct VerifyPhoneOtpReqDto {
     code: String,
     phone: String,
+}
+
+#[derive(serde::Deserialize)]
+struct PasswordLoginReqDto {
+    user_id: Uuid,
+    password: String,
 }
 
 async fn register_webauthn_initialize(
@@ -326,8 +333,40 @@ async fn login_phone_otp(
     HttpResponse::Unauthorized().finish()
 }
 
+async fn login_password(
+    req: HttpRequest,
+    body: web::Form::<PasswordLoginReqDto>,
+    db_conn: web::Data::<sea_orm::DatabaseConnection>,
+    jwt_secret: web::Data<&Lazy<(EncodingKey, DecodingKey)>>
+) -> HttpResponse {
+    let user = services::user::Query::get_user_info_by_id(&db_conn, body.user_id)
+        .await
+        .expect("fail to get user info by id");
+
+    if user.len() > 0 {
+        let user = user[0].0.to_owned();
+
+        if let Some(password) = user.password.clone() {
+            let hashed_password = argon2::password_hash::PasswordHash::new(&password).unwrap();
+
+            if argon2::Argon2::default().verify_password(body.password.as_bytes(), &hashed_password).is_ok() {
+                let (token, refresh_token, fgp) = build_login_session(&user, &jwt_secret.0, &req);
+
+                return HttpResponse::Ok()
+                    .cookie(fgp)
+                    .cookie(refresh_token)
+                    .json(models::login::LoginRespDto{ access_token: token });
+            }
+        }
+    }
+
+    HttpResponse::Unauthorized().finish()
+}
+
 pub fn routes(cfg: &mut web::ServiceConfig) {
     tracing::info!("registering authn routes");
+
+    cfg.route("password/login", web::post().to(login_password));
 
     cfg.route("phone-otp/login", web::patch().to(login_phone_otp));
     cfg.route("phone-otp/login", web::post().to(login_phone_otp_attempt));
