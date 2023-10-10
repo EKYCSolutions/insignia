@@ -286,7 +286,7 @@ async fn login_phone_otp_attempt(
 
     let user = user[0].0.to_owned();
 
-    if user.phone.is_some() {
+    if user.phone.is_some() && user.phone_verified_at.is_some() {
         let _ =
             sms_otp_service
                 .send(services::sms_otp::CoreSMSOtpCommand::Send(user.phone.unwrap()))
