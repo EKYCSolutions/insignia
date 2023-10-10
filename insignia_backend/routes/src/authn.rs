@@ -1,4 +1,5 @@
 
+use chrono::Utc;
 use once_cell::sync::Lazy;
 use actix_session::Session;
 use sea_orm::prelude::Uuid;
@@ -256,6 +257,7 @@ async fn verify_phone_otp_attempt(
 
 async fn verify_phone_otp(
     body: web::Form<VerifyPhoneOtpReqDto>,
+    db_conn: web::Data::<sea_orm::DatabaseConnection>,
     sms_otp_service: web::Data<actix::Addr<CoreSMSOtp>>
 ) -> HttpResponse {
     let result = sms_otp_service
@@ -265,8 +267,35 @@ async fn verify_phone_otp(
 
     if let Ok(result) = result {
         return match result {
-            services::sms_otp::SMSOtpResult::VerifyResult(true) =>
-                HttpResponse::NoContent().finish(),
+            services::sms_otp::SMSOtpResult::VerifyResult(true) => {
+                let user = services::user::Query::get_user_info(&db_conn, &body.phone)
+                    .await
+                    .expect("fail to get user info");
+
+                let user = user[0].0.to_owned();
+
+                let result =
+                    services::user::Mutation::update_user(
+                        &db_conn,
+                        user,
+                        services::user::UserUpdate{
+                            name: None,
+                            phone: None,
+                            email: None,
+                            password: None,
+                            session_data: None,
+                            email_verified_at: None,
+                            phone_verified_at: Some(Utc::now().fixed_offset()),
+                        }
+                    )
+                    .await;
+
+                if let Ok(()) = result {
+                    return HttpResponse::NoContent().finish();
+                }
+
+                HttpResponse::UnprocessableEntity().finish()
+            },
             _ =>
                 HttpResponse::UnprocessableEntity().finish()
         };
