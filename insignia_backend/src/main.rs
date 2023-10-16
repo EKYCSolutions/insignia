@@ -2,6 +2,7 @@
 use actix::Actor;
 use clap::Parser;
 use once_cell::sync::Lazy;
+use common::SESSION_COOKIE_SETTING;
 use jsonwebtoken::{EncodingKey, DecodingKey};
 use tracing_subscriber::{filter, prelude::*};
 use webauthn_rs::{WebauthnBuilder, prelude::Url};
@@ -101,6 +102,8 @@ async fn main() -> std::io::Result<()> {
     tracing::info!("listening on {}:{}", args.listen_addr, args.port);
 
     HttpServer::new(move || {
+        let (same_site, is_cookie_secure, _, _) = *SESSION_COOKIE_SETTING;
+
         let dragonflydb_conn_str = args.dragonflydb_conn_str.clone();
 
         let cors_origins = args.cors_origins.clone();
@@ -135,10 +138,14 @@ async fn main() -> std::io::Result<()> {
                 .build()
                 .expect("invalid webauthn config")))
         .wrap(
-            SessionMiddleware::new(
+            SessionMiddleware::builder(
                 RedisActorSessionStore::new(dragonflydb_conn_str),
                 Key::from(std::fs::read("./session.key").expect("fail to read session-key").as_slice())
             )
+            .cookie_same_site(same_site)
+            .cookie_secure(is_cookie_secure)
+            .cookie_http_only(is_cookie_secure)
+            .build()
         )
         .service(web::scope("/users").configure(routes::users::routes))
         .service(web::scope("/authn").configure(routes::authn::routes))

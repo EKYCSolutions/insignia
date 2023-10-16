@@ -5,11 +5,11 @@ use once_cell::sync::Lazy;
 use sea_orm::prelude::Uuid;
 use actix_session::Session;
 use argon2::{PasswordHasher, PasswordVerifier};
+use actix_web::{web, HttpResponse, HttpRequest};
 use chrono::{DateTime, Utc, NaiveDateTime, Duration};
 use jsonwebtoken::{TokenData, EncodingKey, DecodingKey};
-use actix_web::{web, HttpResponse, HttpRequest, cookie::SameSite};
 
-use common::{UserContext, JwtClaims, build_login_session};
+use common::{UserContext, JwtClaims, build_login_session, SESSION_COOKIE_SETTING};
 use models::{user_info::{UserInfoRespDto, UserSessionRespDto}, http_error::{AppHttpError, AppHttpErrorResponseDto}};
 
 #[derive(serde::Deserialize)]
@@ -147,8 +147,10 @@ async fn refresh_session(
     db_conn: web::Data<sea_orm::DatabaseConnection>,
     jwt_secret: web::Data<&Lazy<(EncodingKey, DecodingKey)>>,
 ) -> HttpResponse {
+    let (_, _, refresh_cookie_name, fgp_cookie_name) = *SESSION_COOKIE_SETTING;
+
     let auth_data =
-        match (req.cookie("__Host-Fgp"), req.cookie("__Host-Refresh")) {
+        match (req.cookie(fgp_cookie_name), req.cookie(refresh_cookie_name)) {
             (Some(fgp), Some(refresh)) => {
                 Some((fgp, refresh))
             }
@@ -195,15 +197,17 @@ async fn refresh_session(
 }
 
 async fn logout(req: HttpRequest) -> HttpResponse {
+    let (same_site, is_cookie_secure, refresh_cookie_name, fgp_cookie_name) = *SESSION_COOKIE_SETTING;
+
     let refresh_cookie =
-        if let Some(cookie) = req.cookie("__Host-Refresh") {
+        if let Some(cookie) = req.cookie(refresh_cookie_name) {
             let mut cookie = cookie;
 
             cookie.make_removal();
             cookie.set_path("/");
-            cookie.set_secure(true);
-            cookie.set_http_only(true);
-            cookie.set_same_site(SameSite::Strict);
+            cookie.set_secure(is_cookie_secure);
+            cookie.set_http_only(is_cookie_secure);
+            cookie.set_same_site(same_site);
 
             cookie
         } else {
@@ -212,14 +216,14 @@ async fn logout(req: HttpRequest) -> HttpResponse {
         };
 
     let fgp_cookie =
-        if let Some(cookie) = req.cookie("__Host-Fgp") {
+        if let Some(cookie) = req.cookie(fgp_cookie_name) {
             let mut cookie = cookie;
 
             cookie.make_removal();
             cookie.set_path("/");
-            cookie.set_secure(true);
-            cookie.set_http_only(true);
-            cookie.set_same_site(SameSite::Strict);
+            cookie.set_secure(is_cookie_secure);
+            cookie.set_http_only(is_cookie_secure);
+            cookie.set_same_site(same_site);
 
             cookie
         } else {

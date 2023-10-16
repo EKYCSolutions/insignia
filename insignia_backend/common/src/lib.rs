@@ -105,6 +105,22 @@ impl FromRequest for UserContext {
     }
 }
 
+pub static FRONTEND_URL: Lazy<String> = Lazy::new(|| {
+    env::var("INSIGNIA_FRONTEND_URL").expect("fail to read INSIGNIA_FRONTEND_URL from env var")
+});
+
+pub static IS_DEV_MODE: Lazy<bool> = Lazy::new(|| {
+    env::var("INSIGNIA_DEV_MODE").expect("fail to read INSIGNIA_DEV_MODE from env var") == "true"
+});
+
+pub static SESSION_COOKIE_SETTING: Lazy<(actix_web::cookie::SameSite, bool, &str, &str)> = Lazy::new(|| {
+    if *IS_DEV_MODE {
+        (actix_web::cookie::SameSite::None, false, "Refresh", "Fgp")
+    } else {
+        (actix_web::cookie::SameSite::Strict, true, "__Host-Refresh", "__Host-Fpg")
+    }
+});
+
 pub fn build_login_session<'a>(
     user: &'a users::Model,
     jwt_secret: &'a EncodingKey,
@@ -122,10 +138,7 @@ pub fn build_login_session<'a>(
 
     let token_context = build_token_context(user, &req.headers(), &fgp, &now, &access_expiry);
 
-    let frontend_url = env::var("INSIGNIA_FRONTEND_URL").expect("fail to read from env var");
-
-    let aud = frontend_url.clone();
-    let iss = aud.clone();
+    let (same_site, is_cookie_secure, refresh_cookie_name, fgp_cookie_name) = *SESSION_COOKIE_SETTING;
 
     let token = jsonwebtoken::encode(
             &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::EdDSA),
@@ -136,8 +149,8 @@ pub fn build_login_session<'a>(
                 nbf: now.timestamp() as usize,
                 exp: access_expiry.timestamp() as usize,
                 typ: JwtType::Login,
-                aud: aud.clone(),
-                iss: iss.clone(),
+                aud: FRONTEND_URL.clone(),
+                iss: FRONTEND_URL.clone(),
                 ctx: Some(token_context.clone()),
                 scope: None,
             },
@@ -145,7 +158,7 @@ pub fn build_login_session<'a>(
         ).expect("fail to create jwt token");
 
     let refresh_token = Cookie::build(
-            "__Host-Refresh",
+            refresh_cookie_name,
             jsonwebtoken::encode(
                 &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::EdDSA),
                 &JwtClaims{
@@ -155,8 +168,8 @@ pub fn build_login_session<'a>(
                     nbf: now.timestamp() as usize,
                     exp: refresh_expiry.timestamp() as usize,
                     typ: JwtType::Refresh,
-                    aud: aud,
-                    iss: iss,
+                    aud: FRONTEND_URL.clone(),
+                    iss: FRONTEND_URL.clone(),
                     ctx: Some(token_context),
                     scope: None,
                 },
@@ -165,20 +178,20 @@ pub fn build_login_session<'a>(
         )
         .path("/")
         .expires(OffsetDateTime::from_unix_timestamp(refresh_expiry.timestamp()).unwrap())
-        .same_site(actix_web::cookie::SameSite::Strict)
-        .http_only(true)
-        .secure(true)
+        .same_site(same_site)
+        .http_only(is_cookie_secure)
+        .secure(is_cookie_secure)
         .finish();
 
     let fgp = Cookie::build(
-            "__Host-Fgp",
+            fgp_cookie_name,
             fgp,
         )
         .path("/")
         .expires(OffsetDateTime::from_unix_timestamp(refresh_expiry.timestamp()).unwrap())
-        .same_site(actix_web::cookie::SameSite::Strict)
-        .http_only(true)
-        .secure(true)
+        .same_site(same_site)
+        .http_only(is_cookie_secure)
+        .secure(is_cookie_secure)
         .finish();
 
     (token, refresh_token, fgp)
@@ -207,6 +220,9 @@ pub fn build_token_context(
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Args {
+    #[arg(long, required = false, env = "INSIGNIA_DEV_MODE", default_value = "false", help = "insignia development mode, turn off some security")]
+    pub is_dev: bool,
+
     #[arg(short, long, required = true, env = "INSIGNIA_MODE", value_parser = ["admin", "frontend"], help = "server mode to run in")]
     pub mode: String,
 
