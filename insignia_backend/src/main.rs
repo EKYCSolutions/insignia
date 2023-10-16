@@ -10,9 +10,9 @@ use actix_web::{HttpServer, App, web, cookie::Key, middleware::Logger, http};
 
 static JWT_SECRET: Lazy<(EncodingKey, DecodingKey)> = Lazy::new(|| {
     (
-        EncodingKey::from_ed_pem(std::fs::read("./jwt-secret.pem").expect("fail to read jwt-secret.pem").as_slice())
+        EncodingKey::from_ed_pem(std::fs::read("./jwt.pem").expect("fail to read jwt.pem").as_slice())
         .expect("fail to read jwt secret key for encoding key"),
-        DecodingKey::from_ed_pem(std::fs::read("./jwt-secret.pub").expect("fail to read jwt-secret.pub").as_slice())
+        DecodingKey::from_ed_pem(std::fs::read("./jwt.pub").expect("fail to read jwt.pub").as_slice())
         .expect("fail to read jwt secret key for decoding key")
     )
 });
