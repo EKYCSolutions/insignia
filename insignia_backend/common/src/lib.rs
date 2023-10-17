@@ -179,7 +179,7 @@ pub fn build_login_session<'a>(
         .path("/")
         .expires(OffsetDateTime::from_unix_timestamp(refresh_expiry.timestamp()).unwrap())
         .same_site(same_site)
-        .http_only(is_cookie_secure)
+        .http_only(true)
         .secure(is_cookie_secure)
         .finish();
 
@@ -190,7 +190,7 @@ pub fn build_login_session<'a>(
         .path("/")
         .expires(OffsetDateTime::from_unix_timestamp(refresh_expiry.timestamp()).unwrap())
         .same_site(same_site)
-        .http_only(is_cookie_secure)
+        .http_only(true)
         .secure(is_cookie_secure)
         .finish();
 

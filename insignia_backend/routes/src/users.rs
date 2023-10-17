@@ -206,7 +206,7 @@ async fn logout(req: HttpRequest) -> HttpResponse {
             cookie.make_removal();
             cookie.set_path("/");
             cookie.set_secure(is_cookie_secure);
-            cookie.set_http_only(is_cookie_secure);
+            cookie.set_http_only(true);
             cookie.set_same_site(same_site);
 
             cookie
@@ -222,7 +222,7 @@ async fn logout(req: HttpRequest) -> HttpResponse {
             cookie.make_removal();
             cookie.set_path("/");
             cookie.set_secure(is_cookie_secure);
-            cookie.set_http_only(is_cookie_secure);
+            cookie.set_http_only(true);
             cookie.set_same_site(same_site);
 
             cookie

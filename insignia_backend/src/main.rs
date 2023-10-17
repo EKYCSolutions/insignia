@@ -144,7 +144,6 @@ async fn main() -> std::io::Result<()> {
             )
             .cookie_same_site(same_site)
             .cookie_secure(is_cookie_secure)
-            .cookie_http_only(is_cookie_secure)
             .build()
         )
         .service(web::scope("/users").configure(routes::users::routes))
