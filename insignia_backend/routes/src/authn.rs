@@ -8,7 +8,8 @@ use jsonwebtoken::{EncodingKey, DecodingKey};
 use actix_web::{web, HttpRequest, HttpResponse};
 use webauthn_rs::{Webauthn, prelude::{RegisterPublicKeyCredential, PasskeyRegistration, PublicKeyCredential, Passkey, PasskeyAuthentication}};
 
-use common::{UserContext, build_login_session};
+use common::build_login_session;
+use super::extractors::user_context::UserContext;
 use services::{user_webauthn_credential::UserWebauthnCredData, sms_otp::CoreSMSOtp};
 
 #[derive(serde::Deserialize)]

@@ -9,7 +9,9 @@ use actix_web::{web, HttpResponse, HttpRequest};
 use chrono::{DateTime, Utc, NaiveDateTime, Duration};
 use jsonwebtoken::{TokenData, EncodingKey, DecodingKey};
 
-use common::{UserContext, JwtClaims, build_login_session, SESSION_COOKIE_SETTING};
+use super::extractors::user_context::UserContext;
+
+use common::{JwtClaims, build_login_session, SESSION_COOKIE_SETTING};
 use models::{user_info::{UserInfoRespDto, UserSessionRespDto}, http_error::{AppHttpError, AppHttpErrorResponseDto}};
 
 #[derive(serde::Deserialize)]
