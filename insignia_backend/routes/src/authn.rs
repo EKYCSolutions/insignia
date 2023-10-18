@@ -139,7 +139,7 @@ async fn login_webauthn_initialize(
     session: Session,
     webauthn: web::Data<Webauthn>,
     db_conn: web::Data<sea_orm::DatabaseConnection>,
-    body: web::Json<WebauthnLoginReqDto>
+    body: web::Form<WebauthnLoginReqDto>
 ) -> HttpResponse {
     session.remove("webauthn-login");
 
