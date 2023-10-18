@@ -40,7 +40,7 @@ pub static IS_DEV_MODE: Lazy<bool> = Lazy::new(|| {
 
 pub static SESSION_COOKIE_SETTING: Lazy<(actix_web::cookie::SameSite, bool, &str, &str)> = Lazy::new(|| {
     if *IS_DEV_MODE {
-        (actix_web::cookie::SameSite::None, false, "Refresh", "Fgp")
+        (actix_web::cookie::SameSite::Lax, false, "Refresh", "Fgp")
     } else {
         (actix_web::cookie::SameSite::Strict, true, "__Host-Refresh", "__Host-Fpg")
     }
