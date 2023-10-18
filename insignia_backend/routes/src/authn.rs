@@ -46,7 +46,7 @@ async fn register_webauthn_initialize(
     db_conn: web::Data<sea_orm::DatabaseConnection>,
     body: web::Json<UserWebauthnRegiserReqDto>
 ) -> HttpResponse {
-    let register_session = session.get::<String>("register").unwrap();
+    let register_session = session.get::<Uuid>("register").unwrap();
 
     if !user_context.is_jwt_verified && register_session.is_none() {
         return HttpResponse::Unauthorized().finish();
@@ -56,7 +56,7 @@ async fn register_webauthn_initialize(
         match (user_context.user, register_session) {
             (Some(user), _) => Some((user, user_context.webauthn_credentials)),
             (_, Some(user_id)) => {
-                if let Ok(u) = services::user::Query::get_user_info_by_id(&db_conn, Uuid::from_slice(user_id.as_bytes()).unwrap()).await {
+                if let Ok(u) = services::user::Query::get_user_info_by_id(&db_conn, user_id).await {
                     Some(u[0].to_owned())
                 } else {
                     None
@@ -224,7 +224,7 @@ async fn verify_phone_otp_attempt(
     db_conn: web::Data<sea_orm::DatabaseConnection>,
     sms_otp_service: web::Data<actix::Addr<CoreSMSOtp>>
 ) -> HttpResponse {
-    let register_session = session.get::<String>("register").unwrap();
+    let register_session = session.get::<Uuid>("register").unwrap();
 
     if !user_context.is_jwt_verified && register_session.is_none() {
         return HttpResponse::Unauthorized().finish();
@@ -234,7 +234,7 @@ async fn verify_phone_otp_attempt(
         match (user_context.user, register_session) {
             (Some(u), _) => u.phone,
             (_, Some(user_id)) => {
-                let user = services::user::Query::get_user_info_by_id(&db_conn, Uuid::from_slice(user_id.as_bytes()).unwrap())
+                let user = services::user::Query::get_user_info_by_id(&db_conn, user_id)
                     .await
                     .expect("fail to read user from database");
 
