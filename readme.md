@@ -2,7 +2,7 @@
 ## Insignia - Modern and Secure Identity Platform
 
 ## Features
-- [ ] passkeys
+- [x] passkeys
 - [x] passwords
 - [ ] magic links
 - [ ] phone sms login
