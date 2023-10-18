@@ -17,6 +17,8 @@ redis = "0.23.3"
 blake3 = "1.5.0"
 argon2 = "0.5.2"
 nanoid = "0.4.0"
+tonic = "0.10.2"
+prost = "0.12.1"
 chrono = "0.4.31"
 tracing = "0.1.37"
 futures = "0.3.28"
@@ -36,12 +38,17 @@ actix-session = { version = "0.8.0", features = ["redis-actor-session"] }
 webauthn-rs = { version = "0.4.8", features = ["danger-allow-state-serialisation"] }
 sea-orm = { version = "0.12.3", features = ["macros", "sqlx-postgres", "runtime-actix-rustls"] }
 
+[build-dependencies]
+tonic-build = "0.10.2"
+
 [dependencies]
 tracing-appender = "0.2.2"
-awc = { workspace = true }
 tracing-subscriber = "0.3.17"
+awc = { workspace = true }
 clap = { workspace = true }
 actix = { workspace = true }
+tonic = { workspace = true }
+prost = { workspace = true }
 redis = { workspace = true }
 serde = { workspace = true }
 blake3 = { workspace = true }
