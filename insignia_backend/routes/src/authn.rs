@@ -48,7 +48,7 @@ async fn register_webauthn_initialize(
 ) -> HttpResponse {
     let register_session = session.get::<String>("register").unwrap();
 
-    if !user_context.is_jwt_verified || register_session.is_none() {
+    if !user_context.is_jwt_verified && register_session.is_none() {
         return HttpResponse::Unauthorized().finish();
     }
 
@@ -226,7 +226,7 @@ async fn verify_phone_otp_attempt(
 ) -> HttpResponse {
     let register_session = session.get::<String>("register").unwrap();
 
-    if !user_context.is_jwt_verified || register_session.is_none() {
+    if !user_context.is_jwt_verified && register_session.is_none() {
         return HttpResponse::Unauthorized().finish();
     }
 
