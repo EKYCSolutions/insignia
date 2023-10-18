@@ -1,0 +1,22 @@
+
+syntax = "proto3";
+
+package dev.insigniaoss.server.v0.user_validation;
+
+message ValidateUserContextReq {
+  string access_token = 1;
+  map<string, string> req_headers = 2;
+}
+
+message User {
+  string id = 1;
+}
+
+message UserContext {
+  bool is_jwt_verified = 1;
+  optional User user = 2;
+}
+
+service UserValidationService {
+  rpc ValidateUserContext (ValidateUserContextReq) returns (UserContext);
+}
