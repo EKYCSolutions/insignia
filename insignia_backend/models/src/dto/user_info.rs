@@ -12,6 +12,9 @@ pub struct WebauthnCredentialRespDto {
 pub struct UserInfoRespDto {
     pub id: Uuid,
     pub created_at: DateTimeWithTimeZone,
+    pub is_has_password: bool,
+    pub is_phone_verified: bool,
+    pub is_email_verified: bool,
     pub webauthn_credentials: Vec<WebauthnCredentialRespDto>,
 }
 
@@ -19,6 +22,11 @@ pub struct UserInfoRespDto {
 pub struct UserSessionRespDto {
     pub id: Uuid,
     pub name: String,
+    pub phone: Option<String>,
+    pub email: Option<String>,
+    pub is_has_password: bool,
+    pub email_verified_at: Option<DateTimeWithTimeZone>,
+    pub phone_verified_at: Option<DateTimeWithTimeZone>,
     pub created_at: DateTimeWithTimeZone,
 }
 
@@ -27,6 +35,9 @@ impl From<(users::Model, Vec<users_webauthn_credentials::Model>)> for UserInfoRe
         UserInfoRespDto {
             id: u.id,
             created_at: u.created_at,
+            is_has_password: u.password.is_some(),
+            is_email_verified: u.email_verified_at.is_some(),
+            is_phone_verified: u.phone_verified_at.is_some(),
             webauthn_credentials:
                 w_creds
                 .iter()
@@ -45,6 +56,11 @@ impl From<users::Model> for UserSessionRespDto {
         UserSessionRespDto {
             id: u.id,
             name: u.name,
+            phone: u.phone,
+            email: u.email,
+            email_verified_at: u.email_verified_at,
+            phone_verified_at: u.phone_verified_at,
+            is_has_password: u.password.is_some(),
             created_at: u.created_at,
         }
     }
