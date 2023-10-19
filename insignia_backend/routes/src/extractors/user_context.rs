@@ -9,7 +9,7 @@ use chrono::{DateTime, Utc, NaiveDateTime};
 use jsonwebtoken::{EncodingKey, DecodingKey, TokenData};
 
 use models::{users, users_webauthn_credentials};
-use common::{JwtClaims, build_token_context, JwtType};
+use common::{JwtClaims, build_token_context, JwtType, SESSION_COOKIE_SETTING};
 
 pub struct UserContext {
     pub is_jwt_verified: bool,
@@ -26,8 +26,10 @@ impl FromRequest for UserContext {
         req: &actix_web::HttpRequest,
         _payload: &mut actix_web::dev::Payload
     ) -> Self::Future {
+        let (_, _, _, fgp_cookie_name) = *SESSION_COOKIE_SETTING;
+
         let auth_data =
-            match (req.cookie("__Host-Fgp"), req.headers().get("authorization")) {
+            match (req.cookie(fgp_cookie_name), req.headers().get("authorization")) {
                 (Some(fgp), Some(token_value)) => {
                     let token_value = token_value.to_str().unwrap().replace("Bearer ", "");
 
