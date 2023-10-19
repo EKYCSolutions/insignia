@@ -138,7 +138,23 @@ async fn set_recovery_data(
 
 async fn get_user_session(user_context: UserContext) -> HttpResponse {
     if user_context.is_jwt_verified {
-        return HttpResponse::Ok().json(UserSessionRespDto::from(user_context.user.unwrap()));
+        let mut user = UserSessionRespDto::from(user_context.user.unwrap());
+
+        if let Some(mut phone) = user.phone {
+            phone.replace_range(..(phone.len() - 2), "*".repeat(phone.len() - 2).as_str());
+
+            user.phone = Some(phone);
+        }
+
+        if let Some(mut email) = user.email {
+            let offset = email.find('@');
+
+            email.replace_range(..offset.unwrap(), "*".repeat(offset.unwrap()).as_str());
+
+            user.email = Some(email);
+        }
+
+        return HttpResponse::Ok().json(user);
     }
 
     HttpResponse::Unauthorized().finish()
