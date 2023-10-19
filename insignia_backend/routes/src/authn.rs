@@ -44,7 +44,7 @@ async fn register_webauthn_initialize(
     user_context: UserContext,
     webauthn: web::Data<Webauthn>,
     db_conn: web::Data<sea_orm::DatabaseConnection>,
-    body: web::Json<UserWebauthnRegiserReqDto>
+    body: web::Form<UserWebauthnRegiserReqDto>
 ) -> HttpResponse {
     let register_session = session.get::<Uuid>("register").unwrap();
 
