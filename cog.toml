@@ -1,0 +1,37 @@
+from_latest_tag = false
+ignore_merge_commits = false
+generate_mono_repository_global_tag = true
+branch_whitelist = []
+skip_untracked = false
+pre_bump_hooks = []
+post_bump_hooks = []
+pre_package_bump_hooks = []
+post_package_bump_hooks = []
+
+[git_hooks.commit-msg]
+script = """#!/bin/zsh
+set -e
+cog verify --file $1
+cog check
+mix credo
+"""
+
+[commit_types]
+test = { changelog_title = "🧪 Testing" }
+fix = { changelog_title = "🐛 Bug Fixes" }
+feat = { changelog_title = "⛰️  Features" }
+style = { changelog_title = "🎨 Styling" }
+revert = { changelog_title = "◀️  Revert" }
+perf = { changelog_title = "⚡ Performance" }
+doc = { changelog_title = "📚 Documentation" }
+refactor = { changelog_title = "🚜 Refactor" }
+ci = { changelog_title = "⚙️  Miscellaneous Task" }
+chore = { changelog_title = "⚙️  Miscellaneous Task" }
+
+[changelog]
+path = "CHANGELOG.md"
+authors = []
+
+[bump_profiles]
+
+[packages]
