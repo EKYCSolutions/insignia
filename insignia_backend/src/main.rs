@@ -92,7 +92,8 @@ async fn main() -> std::io::Result<()> {
                 .allowed_methods(vec!["GET", "PUT", "HEAD", "POST", "PATCH", "DELETE", "OPTIONS"])
                 .allowed_headers(vec![http::header::AUTHORIZATION,  http::header::ACCEPT, http::header::CONTENT_TYPE])
             )
-            .service(web::scope("/well-known-config").configure(routes::well_known_config::admin_routes))
+            .service(web::scope("/configs").configure(routes::config::admin_routes))
+            .service(web::scope("/configs/well-knowns").configure(routes::well_known_config::admin_routes))
         })
         .bind((args.listen_addr, args.port))?
         .run()
@@ -101,6 +102,10 @@ async fn main() -> std::io::Result<()> {
 
     tracing::info!("starting insignia frontend server");
     tracing::info!("listening on {}:{}", args.listen_addr, args.port);
+
+    let webauthn_allow_origins = services::config::Query::list_webauthn_allow_origin(&db_conn)
+        .await
+        .expect("fail to list webauthn allow origins");
 
     HttpServer::new(move || {
         let (same_site, is_cookie_secure, _, _) = *SESSION_COOKIE_SETTING;
@@ -111,6 +116,17 @@ async fn main() -> std::io::Result<()> {
 
         tracing::info!("webauthn rp id - {}", args.rp_id);
         tracing::info!("webauthn rp origin - {}", args.rp_origin);
+
+        let webauthn_rp_origin = Url::parse(&args.rp_origin).expect("invalid webauthn rp origin");
+
+        let mut webauthn = WebauthnBuilder::new(&args.rp_id, &webauthn_rp_origin)
+            .expect("invalid webauthn config");
+
+        for origin in &webauthn_allow_origins {
+            let url = Url::parse(origin.origin.as_str()).expect("fail to parse webauthn allow origin");
+
+            webauthn = webauthn.append_allowed_origin(&url);
+        }
 
         App::new()
         .app_data(web::Data::new(db_conn.clone()))
@@ -134,10 +150,7 @@ async fn main() -> std::io::Result<()> {
         )
         .app_data(web::Data::new(sms_otp_service.to_owned()))
         .app_data(web::Data::new(&JWT_SECRET))
-        .app_data(web::Data::new(WebauthnBuilder::new(&args.rp_id, &Url::parse(&args.rp_origin).expect("invalid webauthn rp origin"))
-                .expect("invalid webauthn config")
-                .build()
-                .expect("invalid webauthn config")))
+        .app_data(web::Data::new(webauthn.build().expect("fail to build webauthn instance")))
         .wrap(
             SessionMiddleware::builder(
                 RedisActorSessionStore::new(dragonflydb_conn_str),
