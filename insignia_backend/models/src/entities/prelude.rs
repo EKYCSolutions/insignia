@@ -2,4 +2,5 @@
 
 pub use super::users::Entity as Users;
 pub use super::users_webauthn_credentials::Entity as UsersWebauthnCredentials;
+pub use super::webauthn_allow_origins::Entity as WebauthnAllowOrigins;
 pub use super::well_known_configs::Entity as WellKnownConfigs;

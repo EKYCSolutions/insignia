@@ -4,4 +4,5 @@ pub mod prelude;
 
 pub mod users;
 pub mod users_webauthn_credentials;
+pub mod webauthn_allow_origins;
 pub mod well_known_configs;
