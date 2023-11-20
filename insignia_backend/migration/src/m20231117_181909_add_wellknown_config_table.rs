@@ -18,9 +18,9 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(WellKnownConfig::IOSAppIds).array(ColumnType::String(Some(64))).not_null())
-                    .col(ColumnDef::new(WellKnownConfig::AndroidPackageName).string().null())
-                    .col(ColumnDef::new(WellKnownConfig::AndroidSha256Fingerprints).array(ColumnType::Text).not_null())
+                    .col(ColumnDef::new(WellKnownConfig::AppleAppSiteAssociationIOSAppIds).array(ColumnType::String(Some(64))).not_null())
+                    .col(ColumnDef::new(WellKnownConfig::AssetlinkAndroidPackageName).string().null())
+                    .col(ColumnDef::new(WellKnownConfig::AssetlinkAndroidSha256Fingerprints).array(ColumnType::Text).not_null())
                     .col(ColumnDef::new(WellKnownConfig::OpenidIssuerUrl).string().null())
                     .col(ColumnDef::new(WellKnownConfig::OpenidAuthorizeUrl).string().null())
                     .col(ColumnDef::new(WellKnownConfig::OpenidJwkUrl).string().null())
@@ -45,9 +45,9 @@ impl MigrationTrait for Migration {
 enum WellKnownConfig {
     Table,
     Id,
-    IOSAppIds,
-    AndroidPackageName,
-    AndroidSha256Fingerprints,
+    AppleAppSiteAssociationIOSAppIds,
+    AssetlinkAndroidPackageName,
+    AssetlinkAndroidSha256Fingerprints,
     OpenidIssuerUrl,
     OpenidAuthorizeUrl,
     OpenidJwkUrl,

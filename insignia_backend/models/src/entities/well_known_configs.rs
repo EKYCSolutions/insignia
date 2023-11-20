@@ -8,9 +8,9 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
-    pub ios_app_ids: Vec<String>,
-    pub android_package_name: Option<String>,
-    pub android_sha256_fingerprints: Vec<String>,
+    pub apple_app_site_association_ios_app_ids: Vec<String>,
+    pub assetlink_android_package_name: Option<String>,
+    pub assetlink_android_sha256_fingerprints: Vec<String>,
     pub openid_issuer_url: Option<String>,
     pub openid_authorize_url: Option<String>,
     pub openid_jwk_url: Option<String>,

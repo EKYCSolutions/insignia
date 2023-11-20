@@ -5,9 +5,9 @@ use models::well_known_configs::{Entity as WellKnownConfig, self};
 
 #[derive(serde::Deserialize)]
 struct UpdateWellKnownConfigDto {
-    ios_app_ids: Vec<String>,
-    android_package_name: String,
-    android_sha256_fingerprints: Vec<String>,
+    apple_app_site_association_ios_app_ids: Vec<String>,
+    assetlink_android_package_name: String,
+    assetlink_android_sha256_fingerprints: Vec<String>,
 }
 
 async fn apple_app_site_association(
@@ -23,7 +23,7 @@ async fn apple_app_site_association(
         .json(serde_json::json!({
             "appclips": {"apps": []},
             "applinks": {
-                "details": well_known_config.ios_app_ids
+                "details": well_known_config.apple_app_site_association_ios_app_ids
                     .iter()
                     .map(|app_id| {
                         serde_json::json!({
@@ -34,7 +34,7 @@ async fn apple_app_site_association(
                     .collect::<Vec<serde_json::Value>>()
             },
             "webcredentials": {
-                "apps": well_known_config.ios_app_ids
+                "apps": well_known_config.apple_app_site_association_ios_app_ids
             }
         }))
 }
@@ -56,8 +56,8 @@ async fn google_assetlinks(
             ],
             "target": {
                 "namespace": "android_app",
-                "package_name": well_known_config.android_package_name,
-                "sha256_cert_fingerprints": well_known_config.android_sha256_fingerprints,
+                "package_name": well_known_config.assetlink_android_package_name,
+                "sha256_cert_fingerprints": well_known_config.assetlink_android_sha256_fingerprints
             }
         }, {
             "relation": [
@@ -112,9 +112,9 @@ async fn update_well_known_config(
         .as_mut()
         .unwrap();
 
-    model.android_package_name = sea_orm::ActiveValue::Set(Some(body.android_package_name.to_owned()));
-    model.android_sha256_fingerprints = sea_orm::ActiveValue::Set(body.android_sha256_fingerprints.to_owned());
-    model.ios_app_ids = sea_orm::ActiveValue::Set(body.ios_app_ids.to_owned());
+    model.assetlink_android_package_name = sea_orm::ActiveValue::Set(Some(body.assetlink_android_package_name.to_owned()));
+    model.assetlink_android_sha256_fingerprints = sea_orm::ActiveValue::Set(body.assetlink_android_sha256_fingerprints.to_owned());
+    model.apple_app_site_association_ios_app_ids = sea_orm::ActiveValue::Set(body.apple_app_site_association_ios_app_ids.to_owned());
 
     let result = model
         .to_owned()
