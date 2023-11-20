@@ -12,7 +12,7 @@ use jsonwebtoken::{TokenData, EncodingKey, DecodingKey};
 use super::extractors::user_context::UserContext;
 
 use common::{JwtClaims, build_login_session, SESSION_COOKIE_SETTING};
-use models::{user_info::{UserInfoRespDto, UserSessionRespDto}, http_error::{AppHttpError, AppHttpErrorResponseDto}};
+use models::{user_info::{UserInfoRespDto, UserSessionRespDto}, http_error::{AppError, AppHttpErrorResponseDto}};
 
 #[derive(serde::Deserialize)]
 struct UserQueryDto {
@@ -75,7 +75,7 @@ async fn create_user(
     HttpResponse::NoContent().finish()
 }
 
-fn verify_recovery_data(user: &models::users::Model, input_recovery_data: &str) -> Result<bool, AppHttpError> {
+fn verify_recovery_data(user: &models::users::Model, input_recovery_data: &str) -> Result<bool, AppError> {
     let recovery_data = user.recovery_data.clone().unwrap();
 
     let recovery_data: Vec<&str> = recovery_data

@@ -18,7 +18,7 @@ impl AppErrorCode {
 }
 
 #[derive(Debug)]
-pub struct AppHttpError {
+pub struct AppError {
     pub code: Option<AppErrorCode>,
     pub message: Option<String>,
 }
@@ -35,7 +35,7 @@ impl fmt::Display for AppHttpErrorResponseDto {
     }
 }
 
-impl From<argon2::password_hash::Error> for AppHttpError {
+impl From<argon2::password_hash::Error> for AppError {
     fn from(value: argon2::password_hash::Error) -> Self {
         match value {
             _ =>
@@ -47,7 +47,7 @@ impl From<argon2::password_hash::Error> for AppHttpError {
     }
 }
 
-impl AppHttpError {
+impl AppError {
     fn message(&self) -> String {
         match self {
             _ => "invalid request".to_string()
@@ -55,10 +55,21 @@ impl AppHttpError {
     }
 }
 
-impl From<AppHttpError> for AppHttpErrorResponseDto {
-    fn from(value: AppHttpError) -> Self {
+impl From<sea_orm::DbErr> for AppHttpErrorResponseDto {
+    fn from(value: sea_orm::DbErr) -> Self {
         match &value {
-            AppHttpError {
+            _ => Self {
+                code: "insig@99".to_string(),
+                message: "unexpected error".to_string()
+            }
+        }
+    }
+}
+
+impl From<AppError> for AppHttpErrorResponseDto {
+    fn from(value: AppError) -> Self {
+        match &value {
+            AppError {
                 code: Some(code),
                 message: _,
             } => Self {
