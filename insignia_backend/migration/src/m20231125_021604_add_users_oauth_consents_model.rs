@@ -20,6 +20,8 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
+                    .col(ColumnDef::new(UserOauthConstent::ZanzibarSubject).string().not_null())
+                    .col(ColumnDef::new(UserOauthConstent::ZanzibarRelative).string().not_null())
                     .col(ColumnDef::new(UserOauthConstent::OauthScopeId).integer().not_null())
                     .col(ColumnDef::new(UserOauthConstent::OauthClientId).integer().not_null())
                     .col(ColumnDef::new(UserOauthConstent::CreatedAt).timestamp_with_time_zone().default(Expr::current_timestamp()).not_null())
@@ -54,5 +56,7 @@ enum UserOauthConstent {
     Id,
     OauthScopeId,
     OauthClientId,
+    ZanzibarSubject,
+    ZanzibarRelative,
     CreatedAt,
 }

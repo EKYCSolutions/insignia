@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
+    pub zanzibar_subject: String,
+    pub zanzibar_relative: String,
     pub oauth_scope_id: i32,
     pub oauth_client_id: i32,
     pub created_at: DateTimeWithTimeZone,
