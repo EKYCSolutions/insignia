@@ -2,7 +2,11 @@
 
 pub mod prelude;
 
+pub mod delegable_user_permissions;
+pub mod oauth_clients;
+pub mod oauth_scopes;
 pub mod users;
+pub mod users_oauth_consents;
 pub mod users_webauthn_credentials;
 pub mod webauthn_allow_origins;
 pub mod well_known_configs;
