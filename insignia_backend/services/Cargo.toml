@@ -20,3 +20,4 @@ webauthn-rs = { workspace = true }
 futures-util = { workspace = true }
 
 models = { path = "../models" }
+common = { path = "../common" }
