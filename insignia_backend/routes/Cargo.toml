@@ -23,6 +23,7 @@ webauthn-rs = { workspace = true }
 futures-util = { workspace = true }
 jsonwebtoken = { workspace = true }
 actix-session = { workspace = true }
+openidconnect = { workspace = true }
 
 common = { path = "../common" }
 models = { path = "../models" }
