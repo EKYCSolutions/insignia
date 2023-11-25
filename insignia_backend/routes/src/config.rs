@@ -43,7 +43,7 @@ pub async fn remove_webauthn_allow_origin(
 }
 
 pub fn admin_routes(cfg: &mut web::ServiceConfig) {
-    cfg.route("webauthn-allow-origins", web::get().to(list_webauthn_allow_origin));
-    cfg.route("webauthn-allow-origins", web::post().to(add_webauthn_allow_origin));
-    cfg.route("webauthn-allow-origins/{id}", web::delete().to(remove_webauthn_allow_origin));
+    cfg.route("", web::get().to(list_webauthn_allow_origin));
+    cfg.route("", web::post().to(add_webauthn_allow_origin));
+    cfg.route("/{id}", web::delete().to(remove_webauthn_allow_origin));
 }

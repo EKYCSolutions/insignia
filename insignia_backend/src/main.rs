@@ -92,8 +92,9 @@ async fn main() -> std::io::Result<()> {
                 .allowed_methods(vec!["GET", "PUT", "HEAD", "POST", "PATCH", "DELETE", "OPTIONS"])
                 .allowed_headers(vec![http::header::AUTHORIZATION,  http::header::ACCEPT, http::header::CONTENT_TYPE])
             )
-            .service(web::scope("/configs").configure(routes::config::admin_routes))
+            .service(web::scope("/configs/oauth").configure(routes::oauth::admin_routes))
             .service(web::scope("/configs/well-knowns").configure(routes::well_known_config::admin_routes))
+            .service(web::scope("/configs/webauthn-allow-origins").configure(routes::config::admin_routes))
         })
         .bind((args.listen_addr, args.port))?
         .run()
@@ -163,6 +164,7 @@ async fn main() -> std::io::Result<()> {
         .service(web::scope("/users").configure(routes::users::routes))
         .service(web::scope("/authn").configure(routes::authn::routes))
         .service(web::scope("/.well-known").configure(routes::well_known_config::routes))
+        .service(web::scope("/oauth").configure(routes::oauth::routes))
     })
     .bind((args.listen_addr, args.port))?
     .run()
