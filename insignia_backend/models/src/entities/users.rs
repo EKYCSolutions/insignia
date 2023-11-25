@@ -25,8 +25,16 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+    #[sea_orm(has_many = "super::users_oauth_consents::Entity")]
+    UsersOauthConsents,
     #[sea_orm(has_many = "super::users_webauthn_credentials::Entity")]
     UsersWebauthnCredentials,
+}
+
+impl Related<super::users_oauth_consents::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::UsersOauthConsents.def()
+    }
 }
 
 impl Related<super::users_webauthn_credentials::Entity> for Entity {

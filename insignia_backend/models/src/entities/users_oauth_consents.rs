@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
+    pub user_id: Uuid,
     pub zanzibar_subject: String,
     pub zanzibar_relative: String,
     pub oauth_scope_id: i32,
@@ -33,6 +34,14 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     OauthScopes,
+    #[sea_orm(
+        belongs_to = "super::users::Entity",
+        from = "Column::UserId",
+        to = "super::users::Column::Id",
+        on_update = "NoAction",
+        on_delete = "Cascade"
+    )]
+    Users,
 }
 
 impl Related<super::oauth_clients::Entity> for Entity {
@@ -44,6 +53,12 @@ impl Related<super::oauth_clients::Entity> for Entity {
 impl Related<super::oauth_scopes::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::OauthScopes.def()
+    }
+}
+
+impl Related<super::users::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Users.def()
     }
 }
 

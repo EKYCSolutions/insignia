@@ -1,6 +1,6 @@
 use sea_orm_migration::prelude::*;
 
-use crate::{m20231125_020825_add_oauth_scopes_model::OauthScope, m20231125_021216_add_oauth_client_model::OauthClient};
+use crate::{m20231125_020825_add_oauth_scopes_model::OauthScope, m20231125_021216_add_oauth_client_model::OauthClient, m20220101_000001_create_table::User};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -20,11 +20,18 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
+                    .col(ColumnDef::new(UserOauthConstent::UserId).uuid().not_null())
                     .col(ColumnDef::new(UserOauthConstent::ZanzibarSubject).string().not_null())
                     .col(ColumnDef::new(UserOauthConstent::ZanzibarRelative).string().not_null())
                     .col(ColumnDef::new(UserOauthConstent::OauthScopeId).integer().not_null())
                     .col(ColumnDef::new(UserOauthConstent::OauthClientId).integer().not_null())
                     .col(ColumnDef::new(UserOauthConstent::CreatedAt).timestamp_with_time_zone().default(Expr::current_timestamp()).not_null())
+                    .foreign_key(
+                        ForeignKey::create()
+                        .on_delete(ForeignKeyAction::Cascade)
+                        .from(UserOauthConstent::Table, UserOauthConstent::UserId)
+                        .to(User::Table, User::Id)
+                    )
                     .foreign_key(
                         ForeignKey::create()
                         .on_delete(ForeignKeyAction::Cascade)
@@ -54,6 +61,7 @@ impl MigrationTrait for Migration {
 enum UserOauthConstent {
     Table,
     Id,
+    UserId,
     OauthScopeId,
     OauthClientId,
     ZanzibarSubject,
