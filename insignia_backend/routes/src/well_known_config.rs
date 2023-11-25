@@ -1,7 +1,28 @@
 
-use sea_orm::{EntityTrait, ActiveModelTrait, TryIntoModel};
+use once_cell::sync::Lazy;
 use actix_web::{web, HttpResponse};
-use models::well_known_configs::{Entity as WellKnownConfig, self};
+use sea_orm::{EntityTrait, ActiveModelTrait, TryIntoModel};
+use models::{well_known_configs::{Entity as WellKnownConfig, self}, http_error::AppHttpErrorResponseDto};
+use openidconnect::{
+    Scope,
+    AuthUrl,
+    TokenUrl,
+    IssuerUrl,
+    UserInfoUrl,
+    ResponseTypes,
+    JsonWebKeySetUrl,
+    PrivateSigningKey,
+    EmptyAdditionalProviderMetadata,
+    core::{
+        CoreClaimName,
+        CoreJsonWebKey,
+        CoreResponseType,
+        CoreProviderMetadata,
+        CoreJwsSigningAlgorithm,
+        CoreSubjectIdentifierType,
+        CoreEdDsaPrivateSigningKey,
+    },
+};
 
 #[derive(serde::Deserialize)]
 struct UpdateWellKnownConfigDto {
@@ -130,12 +151,93 @@ async fn update_well_known_config(
         .json(result)
 }
 
+static JWK_CONFIG: Lazy<Vec<CoreJsonWebKey>> = Lazy::new(|| {
+    vec![
+        CoreEdDsaPrivateSigningKey::from_ed25519_pem(
+            &std::fs::read_to_string("./jwt-secret.pem").expect("fail to read jwt-secret.pem"),
+            None
+        )
+            .expect("fail to read ed25519 key")
+            .as_verification_key()
+    ]
+});
+
+static OAUTH_ISSUER_URL: Lazy<String> = Lazy::new(|| {
+    std::env::var("INSIGNIA_OAUTH_ISSUER_URL")
+        .expect("fail to read INSIGNIA_OAUTH_ISSUER_URL env var")
+});
+
+async fn oidc_discovery(
+    db_conn: web::Data<sea_orm::DatabaseConnection>
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
+    let issuer_url = &*OAUTH_ISSUER_URL;
+
+    let mut scopes_supported = vec![
+        Scope::new("openid".to_string()),
+        Scope::new("profile".to_string()),
+    ];
+
+    let oauth_scopes = services::oauth::Query::list_oauth_scopes(&db_conn)
+        .await?;
+
+    for oas in oauth_scopes {
+        scopes_supported.push(Scope::new(oas.name));
+    }
+
+    let config = CoreProviderMetadata::new(
+        IssuerUrl::new(issuer_url.clone()).unwrap(),
+        AuthUrl::new(format!("{issuer_url}/oauth/authorize")).unwrap(),
+        JsonWebKeySetUrl::new(format!("{issuer_url}/oauth/jwk")).unwrap(),
+        vec![
+            ResponseTypes::new(vec![CoreResponseType::Code]),
+            ResponseTypes::new(vec![CoreResponseType::Token]),
+            ResponseTypes::new(vec![CoreResponseType::IdToken]),
+        ],
+        vec![CoreSubjectIdentifierType::Pairwise],
+        vec![CoreJwsSigningAlgorithm::EdDsaEd25519],
+        EmptyAdditionalProviderMetadata{},
+    )
+        .set_token_endpoint(Some(TokenUrl::new(format!("{issuer_url}/oauth/token")).unwrap()))
+        .set_userinfo_endpoint(Some(UserInfoUrl::new(format!("{issuer_url}/oauth/userinfo")).unwrap()))
+        .set_scopes_supported(Some(scopes_supported))
+        .set_claims_supported(Some(vec![
+            CoreClaimName::new("sub".to_string()),
+            CoreClaimName::new("aud".to_string()),
+            CoreClaimName::new("email".to_string()),
+            CoreClaimName::new("email_verified_at".to_string()),
+            CoreClaimName::new("phone".to_string()),
+            CoreClaimName::new("phone_verified_at".to_string()),
+            CoreClaimName::new("exp".to_string()),
+            CoreClaimName::new("iat".to_string()),
+            CoreClaimName::new("iss".to_string()),
+            CoreClaimName::new("username".to_string()),
+        ]));
+
+    Ok(HttpResponse::Ok().json(config))
+}
+
+async fn jwk_config() -> HttpResponse {
+    HttpResponse::Ok()
+        .json(&*JWK_CONFIG)
+}
+
 pub fn admin_routes(cfg: &mut web::ServiceConfig) {
+    tracing::info!("registering well known config admin routes");
+
     cfg.route("", web::get().to(get_well_known_config));
     cfg.route("", web::patch().to(update_well_known_config));
+
+    tracing::info!("well known config admin registered");
 }
 
 pub fn routes(cfg: &mut web::ServiceConfig) {
+    tracing::info!("registering well known config routes");
+
     cfg.route("assetlinks.json", web::get().to(google_assetlinks));
     cfg.route("apple-app-site-association", web::get().to(apple_app_site_association));
+
+    cfg.route("oauth/jwk", web::get().to(jwk_config));
+    cfg.route("oauth/openid-configuration", web::get().to(oidc_discovery));
+
+    tracing::info!("well known config routes registered");
 }
