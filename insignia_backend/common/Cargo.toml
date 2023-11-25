@@ -19,4 +19,3 @@ futures-util = { workspace = true }
 jsonwebtoken = { workspace = true }
 
 models = { path = "../models" }
-services = { path = "../services" }
