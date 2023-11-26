@@ -1,6 +1,7 @@
 
 use std::ops::Add;
 
+use actix::Addr;
 use once_cell::sync::Lazy;
 use sea_orm::prelude::Uuid;
 use actix_session::Session;
@@ -9,8 +10,9 @@ use actix_web::{web, HttpResponse, HttpRequest};
 use chrono::{DateTime, Utc, NaiveDateTime, Duration};
 use jsonwebtoken::{TokenData, EncodingKey, DecodingKey};
 
+use crate::oauth::AuthorizeCodeFlowData;
+use services::dragonfly::DragonflyService;
 use super::extractors::user_context::UserContext;
-
 use common::{JwtClaims, build_login_session, SESSION_COOKIE_SETTING};
 use models::{user_info::{UserInfoRespDto, UserSessionRespDto}, http_error::{AppError, AppHttpErrorResponseDto}};
 
@@ -37,6 +39,21 @@ struct UserCreateReqDto {
 #[derive(serde::Serialize)]
 struct UserCreateRespDto {
     id: Uuid,
+}
+
+#[derive(serde::Serialize)]
+pub struct OauthAuthorizedClientResponse {
+    pub id: i32,
+    pub oauth_client_id: String,
+}
+
+impl From<models::users_oauth_authorized_clients::Model> for OauthAuthorizedClientResponse {
+    fn from(value: models::users_oauth_authorized_clients::Model) -> Self {
+        Self {
+            id: value.id,
+            oauth_client_id: value.oauth_client_id.to_string(),
+        }
+    }
 }
 
 async fn check_user(query: web::Query<UserQueryDto>, db_conn: web::Data<sea_orm::DatabaseConnection>) -> HttpResponse {
@@ -255,6 +272,78 @@ async fn logout(req: HttpRequest) -> HttpResponse {
         .finish()
 }
 
+pub async fn oauth_consent(
+    user_context: UserContext,
+    db_conn: web::Data<sea_orm::DatabaseConnection>,
+    body: web::Json<models::oauth::UserOauthConsentApproveRequestDto>,
+    dragonfly_service: web::Data<Addr<DragonflyService>>,
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
+    let auth_flow_data = dragonfly_service.send(services::dragonfly::DragonflyCommand::Get(body.request_id.to_owned()))
+        .await??;
+
+    if let Some(auth_flow_data) = auth_flow_data {
+        let auth_flow_data = serde_json::from_str::<AuthorizeCodeFlowData>(&auth_flow_data)?;
+
+        let user = user_context.user.unwrap();
+
+        let authorized_client = services::user::Query::get_oauth_authorized_client_by_client_id(
+            &db_conn,
+            auth_flow_data.oauth_client_id,
+            user.id
+        )
+            .await?;
+
+        if authorized_client.is_some() {
+            return Ok(HttpResponse::NoContent().finish());
+        }
+
+        let oauth_client = services::oauth::Query::get_oauth_client_by_client_id(
+            &db_conn,
+            auth_flow_data.client_id
+        )
+            .await?;
+
+        if oauth_client.is_none() {
+            return Ok(HttpResponse::Unauthorized().finish());
+        }
+
+        let consent = services::user::Mutation::oauth_consent_for_app_to_act_on_behalf_of_user(
+            &db_conn,
+            user,
+            oauth_client.unwrap(),
+            body.consents.to_owned(),
+        )
+            .await?;
+
+        return Ok(HttpResponse::Ok().json(serde_json::json!({
+            "oauth_consents": consent.1,
+            "oauth_authorized_client": consent.0,
+        })));
+    }
+
+    Ok(HttpResponse::Unauthorized().finish())
+}
+
+pub async fn authorized_clients(
+    user_context: UserContext,
+    db_conn: web::Data<sea_orm::DatabaseConnection>,
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
+    if let Some(user) = user_context.user {
+        let authorized_clients = services::user::Query::list_oauth_authorized_client(&db_conn, user)
+            .await?;
+
+        let mut authorized_clients_resp: Vec<OauthAuthorizedClientResponse> = vec![];
+
+        for c in authorized_clients {
+            authorized_clients_resp.push(c.into());
+        }
+
+        return Ok(HttpResponse::Ok().json(authorized_clients_resp));
+    }
+
+    Ok(HttpResponse::Unauthorized().finish())
+}
+
 pub fn routes(cfg: &mut web::ServiceConfig) {
     tracing::info!("registering users routes");
 
@@ -264,6 +353,10 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
             .route(web::post().to(create_user))
             .route(web::get().to(get_user_info))
     );
+
+    cfg.route("oauth/authorized-clients", web::get().to(authorized_clients));
+
+    cfg.route("oauth/consent", web::post().to(oauth_consent));
 
     cfg.route("session", web::get().to(get_user_session));
     cfg.route("session", web::delete().to(logout));

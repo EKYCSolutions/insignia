@@ -1,6 +1,11 @@
 
 use argon2::PasswordHasher;
-use models::{users::{Entity as User, self}, users_oauth_consents::{Entity as UserOauthConsent, self}, oauth_clients, users_oauth_authorized_clients};
+use models::{
+    oauth_clients,
+    users::{Entity as User, self},
+    users_oauth_consents::{Entity as UserOauthConsent, self},
+    users_oauth_authorized_clients::{Entity as UserOauthAuthorizedClient, self},
+};
 use sea_orm::{
     DbErr,
     Condition,
@@ -62,6 +67,18 @@ impl Query {
         .await
     }
 
+    pub async fn list_oauth_authorized_client(
+        db: &DatabaseConnection,
+        user: users::Model
+    ) -> Result<Vec<users_oauth_authorized_clients::Model>, DbErr> {
+        Ok(
+            UserOauthAuthorizedClient::find()
+                .filter(users_oauth_authorized_clients::Column::UserId.eq(user.id))
+                .all(db)
+                .await?
+        )
+    }
+
     pub async fn list_oauth_consents(
         db: &DatabaseConnection,
         client: models::users_oauth_authorized_clients::Model,
@@ -70,6 +87,20 @@ impl Query {
             UserOauthConsent::find()
                 .filter(users_oauth_consents::Column::UserOauthAuthorizedClientId.eq(client.id))
                 .all(db)
+                .await?
+        )
+    }
+
+    pub async fn get_oauth_authorized_client_by_client_id(
+        db: &DatabaseConnection,
+        id: i32,
+        user_id: Uuid
+    ) -> Result<Option<users_oauth_authorized_clients::Model>, DbErr> {
+        Ok(
+            UserOauthAuthorizedClient::find()
+                .filter(users_oauth_authorized_clients::Column::UserId.eq(user_id))
+                .filter(users_oauth_authorized_clients::Column::OauthClientId.eq(id))
+                .one(db)
                 .await?
         )
     }
@@ -186,6 +217,7 @@ impl Mutation {
 
                 for cons_obj in consents_object {
                     let consent = users_oauth_consents::ActiveModel {
+                        oauth_scope_id: sea_orm::ActiveValue::Set(cons_obj.oauth_scope_id),
                         zanzibar_subject: sea_orm::ActiveValue::Set(cons_obj.zanzibar_subject),
                         zanzibar_relative: sea_orm::ActiveValue::Set(cons_obj.zanzibar_relative),
                         user_oauth_authorized_client_id: sea_orm::ActiveValue::Set(authorized_client.id),
