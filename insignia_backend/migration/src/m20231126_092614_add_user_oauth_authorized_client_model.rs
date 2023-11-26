@@ -36,6 +36,12 @@ impl MigrationTrait for Migration {
                         .from(UserOauthAuthorizedClient::Table, UserOauthAuthorizedClient::OauthClientId)
                         .to(OauthClient::Table, OauthClient::Id)
                     )
+                    .index(
+                        Index::create()
+                        .unique()
+                        .col(UserOauthAuthorizedClient::UserId)
+                        .col(UserOauthAuthorizedClient::OauthClientId)
+                    )
                     .to_owned(),
             )
             .await
@@ -64,10 +70,31 @@ impl MigrationTrait for Migration {
             .await
             .unwrap();
 
+        manager.create_index(
+            Index::create()
+                .table(UserOauthConstent::Table)
+                .unique()
+                .col(UserOauthConstent::OauthScopeId)
+                .col(Alias::new("user_oauth_authorized_client_id"))
+                .to_owned()
+        )
+            .await
+            .unwrap();
+
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_index(
+                Index::drop()
+                    .table(UserOauthConstent::Table)
+                    .name("users_oauth_consents_oauth_scope_id_user_oauth_authorized_c_idx")
+                    .to_owned()
+            )
+            .await
+            .unwrap();
+
         manager
             .alter_table(
                 Table::alter()
