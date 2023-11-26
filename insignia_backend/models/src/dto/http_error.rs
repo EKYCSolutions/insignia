@@ -1,6 +1,7 @@
 
 use std::fmt;
 
+use sea_orm::DbErr;
 use redis::RedisError;
 use actix::MailboxError;
 use actix_web::{ResponseError, http::StatusCode, HttpResponse};
@@ -77,6 +78,28 @@ impl AppError {
     fn message(&self) -> String {
         match self {
             _ => "invalid request".to_string()
+        }
+    }
+}
+
+impl From<serde_json::Error> for AppHttpErrorResponseDto {
+    fn from(value: serde_json::Error) -> Self {
+        match value {
+            val => Self {
+                code: "insig@99".to_string(),
+                message: val.to_string(),
+            }
+        }
+    }
+}
+
+impl From<sea_orm::TransactionError<DbErr>> for AppHttpErrorResponseDto {
+    fn from(value: sea_orm::TransactionError<DbErr>) -> Self {
+        match value {
+            _ => Self {
+                code: "insig@99".to_string(),
+                message: "unexpected error".to_string(),
+            }
         }
     }
 }
