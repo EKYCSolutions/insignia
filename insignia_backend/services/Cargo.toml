@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 awc = { workspace = true }
+redis = { workspace = true }
 actix = { workspace = true }
 serde = { workspace = true }
 blake3 = { workspace = true }

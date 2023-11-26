@@ -70,7 +70,7 @@ dependencies = [
  "actix-service",
  "actix-utils",
  "ahash 0.8.3",
- "base64 0.21.4",
+ "base64 0.21.5",
  "bitflags 2.4.0",
  "brotli",
  "bytes",
@@ -717,7 +717,7 @@ dependencies = [
  "actix-service",
  "actix-tls",
  "actix-utils",
- "base64 0.21.4",
+ "base64 0.21.5",
  "bytes",
  "cfg-if",
  "cookie 0.16.2",
@@ -830,9 +830,9 @@ checksum = "0ea22880d78093b0cbe17c89f64a7d457941e65759157ec6cb31a31d652b05e5"
 
 [[package]]
 name = "base64"
-version = "0.21.4"
+version = "0.21.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ba43ea6f343b788c8764558649e08df62f86c6ef251fdaeb1ffd010a9ae50a2"
+checksum = "35636a1494ede3b646cc98f74f8e62c773a38a659ebc777a2cf26b9b74171df9"
 
 [[package]]
 name = "base64ct"
@@ -846,7 +846,7 @@ version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "18b3d30abb74120a9d5267463b9e0045fdccc4dd152e7249d966612dc1721384"
 dependencies = [
- "base64 0.21.4",
+ "base64 0.21.5",
  "serde",
  "serde_json",
 ]
@@ -1235,7 +1235,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7efb37c3e1ccb1ff97164ad95ac1606e8ccd35b3fa0a7d99a304c7f4a428cc24"
 dependencies = [
  "aes-gcm",
- "base64 0.21.4",
+ "base64 0.21.5",
  "hkdf",
  "hmac",
  "rand",
@@ -2312,7 +2312,7 @@ version = "8.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6971da4d9c3aa03c3d8f3ff0f4155b534aad021292003895a469716b2a230378"
 dependencies = [
- "base64 0.21.4",
+ "base64 0.21.5",
  "pem",
  "ring",
  "serde",
@@ -2491,8 +2491,11 @@ dependencies = [
 name = "models"
 version = "0.1.0"
 dependencies = [
+ "actix",
  "actix-web",
  "argon2",
+ "jsonwebtoken",
+ "redis",
  "sea-orm",
  "serde",
 ]
@@ -3261,7 +3264,7 @@ version = "0.11.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "046cd98826c46c2ac8ddecae268eb5c2e58628688a5fc7a2643704a73faba95b"
 dependencies = [
- "base64 0.21.4",
+ "base64 0.21.5",
  "bytes",
  "encoding_rs",
  "futures-core",
@@ -3356,6 +3359,7 @@ dependencies = [
  "actix-session",
  "actix-web",
  "argon2",
+ "base64 0.21.5",
  "blake3",
  "chrono",
  "common",
@@ -3366,6 +3370,7 @@ dependencies = [
  "nanoid",
  "once_cell",
  "openidconnect",
+ "redis",
  "sea-orm",
  "serde",
  "serde_json",
@@ -3494,7 +3499,7 @@ version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d3987094b1d07b653b7dfdc3f70ce9a1da9c51ac18c1b06b662e4f9a0e9f4b2"
 dependencies = [
- "base64 0.21.4",
+ "base64 0.21.5",
 ]
 
 [[package]]
@@ -3808,7 +3813,7 @@ version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "64cd236ccc1b7a29e7e2739f27c0b2dd199804abc4290e32f59f3b68d6405c23"
 dependencies = [
- "base64 0.21.4",
+ "base64 0.21.5",
  "chrono",
  "hex",
  "indexmap 1.9.3",
@@ -3845,6 +3850,7 @@ dependencies = [
  "futures-util",
  "models",
  "nanoid",
+ "redis",
  "sea-orm",
  "serde",
  "serde_json",
@@ -4103,7 +4109,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "864b869fdf56263f4c95c45483191ea0af340f9f3e3e7b4d57a61c7c87a970db"
 dependencies = [
  "atoi",
- "base64 0.21.4",
+ "base64 0.21.5",
  "bigdecimal",
  "bitflags 2.4.0",
  "byteorder",
@@ -4150,7 +4156,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb7ae0e6a97fb3ba33b23ac2671a5ce6e3cabe003f451abd5a56e7951d975624"
 dependencies = [
  "atoi",
- "base64 0.21.4",
+ "base64 0.21.5",
  "bigdecimal",
  "bitflags 2.4.0",
  "byteorder",
@@ -4493,7 +4499,7 @@ dependencies = [
  "async-stream",
  "async-trait",
  "axum",
- "base64 0.21.4",
+ "base64 0.21.5",
  "bytes",
  "h2",
  "http",
