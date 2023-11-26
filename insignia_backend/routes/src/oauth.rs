@@ -61,6 +61,7 @@ pub struct OauthAuthorizeRequestDto {
 pub struct AuthorizeCodeFlowData {
     pub context: String,
     pub client_id: String,
+    pub oauth_client_id: i32,
     pub code_challenge: String,
     pub code_challenge_method: CodeChallengeMethod,
     pub nonce: String,
@@ -100,6 +101,7 @@ pub struct GenerateOauthTokenOpts {
     pub subject: String,
     pub scope: Vec<String>,
     pub audience: Vec<String>,
+    pub token_key: Option<String>,
     pub access_token_expiry: u32,
     pub refresh_token_expiry: u32,
 }
@@ -235,6 +237,7 @@ async fn authorize(
             let auth_flow_data = AuthorizeCodeFlowData {
                 request_timestamp: Utc::now().timestamp(),
                 client_id: body.client_id.to_owned(),
+                oauth_client_id: oauth_client.id,
                 code_challenge: body.code_challenge.to_owned(),
                 code_challenge_method: body.code_challenge_method.to_owned(),
                 nonce: body.nonce.to_owned(),
@@ -283,12 +286,16 @@ async fn token(
                 if oauth_client.is_some() && oauth_client.as_ref().unwrap().client_secret == body.client_secret {
                     let oauth_client = oauth_client.unwrap();
 
+                    let access_expiry_2_hour_as_sec = 7200;
+                    let refresh_expiry_2_months_as_sec = 525600576;
+
                     let opts = GenerateOauthTokenOpts {
                         scope: vec![],
                         subject: "".to_string(),
                         audience: oauth_client.audiences,
-                        access_token_expiry: 7200,
-                        refresh_token_expiry: 525600576,
+                        token_key: None,
+                        access_token_expiry: access_expiry_2_hour_as_sec,
+                        refresh_token_expiry: refresh_expiry_2_months_as_sec,
                     };
 
                     let token_resp = generate_oauth_token(opts, &jwt_secret.0)?;
@@ -335,18 +342,22 @@ async fn token(
                 };
 
                 if code_challenge == auth_flow_data.code_challenge {
-                    dragonfly_service.send(services::dragonfly::DragonflyCommand::Del(consent_response.request_id))
-                        .await??;
+                    let access_expiry_16_min_as_sec = 480;
+                    let refresh_expiry_4_weeks_as_sec = 2419200;
 
                     let opts = GenerateOauthTokenOpts {
                         scope: consent_response.scope,
-                        subject: consent_response.subject,
+                        subject: consent_response.subject.to_string(),
                         audience: consent_response.audience,
-                        access_token_expiry: 480,
-                        refresh_token_expiry: 2419200,
+                        token_key: None,
+                        access_token_expiry: access_expiry_16_min_as_sec,
+                        refresh_token_expiry: refresh_expiry_4_weeks_as_sec,
                     };
 
                     let token_resp = generate_oauth_token(opts, &jwt_secret.0)?;
+
+                    dragonfly_service.send(services::dragonfly::DragonflyCommand::Del(consent_response.request_id))
+                        .await??;
 
                     return Ok(HttpResponse::Ok().json(token_resp));
                 }
