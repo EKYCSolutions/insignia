@@ -1,5 +1,17 @@
 
-use actix_web::{web, HttpResponse};
+use std::ops::{Add, Sub};
+
+use actix::Addr;
+use base64::Engine;
+use common::JwtClaims;
+use once_cell::sync::Lazy;
+use sha2::{Sha256, Digest};
+use chrono::{Utc, Duration};
+use jsonwebtoken::{EncodingKey, DecodingKey};
+use actix_web::{web, HttpResponse, HttpRequest, http::header};
+
+use services::dragonfly::DragonflyService;
+use models::{http_error::{AppHttpErrorResponseDto, AppError}, oauth::UserOauthConsentResponse};
 
 #[derive(serde::Deserialize)]
 pub struct AddDelegableUserPermissionDto {
@@ -20,7 +32,82 @@ pub struct GetOauthClientQueryDto {
     client_id: String,
 }
 
-use models::http_error::AppHttpErrorResponseDto;
+#[derive(serde::Deserialize, PartialEq)]
+#[serde(rename_all(deserialize = "snake_case"))]
+pub enum OauthAuthorizeResponseType {
+    Code,
+}
+
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all(deserialize = "snake_case"))]
+pub enum CodeChallengeMethod {
+    S256,
+    Blake3,
+}
+
+#[derive(serde::Deserialize)]
+pub struct OauthAuthorizeRequestDto {
+    pub client_id: String,
+    pub nonce: String,
+    pub state: String,
+    pub scope: String,
+    pub redirect_uri: String,
+    pub response_type: OauthAuthorizeResponseType,
+    pub code_challenge: String,
+    pub code_challenge_method: CodeChallengeMethod,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct AuthorizeCodeFlowData {
+    pub context: String,
+    pub client_id: String,
+    pub code_challenge: String,
+    pub code_challenge_method: CodeChallengeMethod,
+    pub nonce: String,
+    pub state: String,
+    pub request_timestamp: i64,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all(deserialize = "snake_case"))]
+pub enum TokenGrantType {
+    Refresh,
+    AuthorizationCode,
+    ClientCredentials,
+}
+
+#[derive(serde::Deserialize)]
+pub struct TokenRequestDto {
+    pub client_id: String,
+    pub grant_type: TokenGrantType,
+    pub code: Option<String>,
+    pub nonce: Option<String>,
+    pub redirect_uri: Option<String>,
+    pub client_secret: Option<String>,
+    pub code_verifier: Option<String>,
+    pub refresh_token: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+pub struct TokenResponseDto {
+    pub expires_in: u64,
+    pub token_type: String,
+    pub access_token: String,
+    pub refresh_token: Option<String>,
+}
+
+pub struct GenerateOauthTokenOpts {
+    pub subject: String,
+    pub scope: Vec<String>,
+    pub audience: Vec<String>,
+    pub access_token_expiry: u32,
+    pub refresh_token_expiry: u32,
+}
+
+static AUTH_UI_URL: Lazy<String> = Lazy::new(|| {
+    std::env::var("INSIGNIA_AUTH_UI_URL")
+        .expect("fail to read INSIGNIA_AUTH_UI_URL")
+});
 
 async fn add_delegable_user_permission(
     db_conn: web::Data<sea_orm::DatabaseConnection>,
@@ -125,12 +212,161 @@ async fn remove_oauth_client(
     Ok(HttpResponse::NoContent().finish())
 }
 
+async fn authorize(
+    req: HttpRequest,
+    body: web::Form<OauthAuthorizeRequestDto>,
+    db_conn: web::Data<sea_orm::DatabaseConnection>,
+    dragonfly_service: web::Data<Addr<DragonflyService>>,
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
+    let oauth_client = services::oauth::Query::get_oauth_client_by_client_id(
+        &db_conn,
+        body.client_id.clone()
+    )
+        .await?;
+
+    if let Some(oauth_client) = oauth_client {
+        if body.response_type == OauthAuthorizeResponseType::Code && oauth_client.client_type == "public" {
+            let conn_info = req.connection_info();
+
+            let client_ip = conn_info.realip_remote_addr().map_or("", |v| v);
+
+            let user_agent = req.headers().get("User-Agent").map_or("nothing", |v| v.to_str().unwrap());
+
+            let auth_flow_data = AuthorizeCodeFlowData {
+                request_timestamp: Utc::now().timestamp(),
+                client_id: body.client_id.to_owned(),
+                code_challenge: body.code_challenge.to_owned(),
+                code_challenge_method: body.code_challenge_method.to_owned(),
+                nonce: body.nonce.to_owned(),
+                state: body.state.to_owned(),
+                context: blake3::hash(format!("{client_ip}{user_agent}").as_bytes()).to_string(),
+            };
+
+            let request_id = nanoid::nanoid!(32);
+
+            dragonfly_service.send(services::dragonfly::DragonflyCommand::Set(
+                format!("oauth-auth-flow@{request_id}"),
+                serde_json::to_string(&auth_flow_data).expect("fail to serialize auth flow data"),
+                redis::SetOptions::default().with_expiration(redis::SetExpiry::EX(960))
+            ))
+                .await??;
+
+            let auth_ui_url = &*AUTH_UI_URL;
+
+            let redirect_url = format!("{auth_ui_url}/oauth/authorize?request_id={request_id}");
+
+            return Ok(HttpResponse::Found()
+                .insert_header((header::LOCATION, redirect_url))
+                .finish());
+        }
+    }
+
+    Ok(HttpResponse::BadRequest().finish())
+}
+
+async fn token(
+    body: web::Form<TokenRequestDto>,
+    db_conn: web::Data<sea_orm::DatabaseConnection>,
+    dragonfly_service: web::Data<Addr<DragonflyService>>,
+    jwt_secret: web::Data<&Lazy<(EncodingKey, DecodingKey)>>
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
+    match &body.grant_type {
+        TokenGrantType::Refresh => todo!(),
+        TokenGrantType::ClientCredentials => {
+            if body.client_secret.is_some() {
+                let oauth_client = services::oauth::Query::get_oauth_client_by_client_id(
+                    &db_conn,
+                    body.client_id.to_owned()
+                )
+                    .await?;
+
+                if oauth_client.is_some() && oauth_client.as_ref().unwrap().client_secret == body.client_secret {
+                    let oauth_client = oauth_client.unwrap();
+
+                    let opts = GenerateOauthTokenOpts {
+                        scope: vec![],
+                        subject: "".to_string(),
+                        audience: oauth_client.audiences,
+                        access_token_expiry: 7200,
+                        refresh_token_expiry: 525600576,
+                    };
+
+                    let token_resp = generate_oauth_token(opts, &jwt_secret.0)?;
+
+                    return Ok(HttpResponse::Ok().json(token_resp));
+                }
+            }
+        },
+        TokenGrantType::AuthorizationCode => {
+            if body.code_verifier.is_some() {
+                let code = body.code.to_owned().unwrap();
+
+                let consent_response = dragonfly_service.send(services::dragonfly::DragonflyCommand::Get(code))
+                    .await??;
+
+                if consent_response.is_none() {
+                    return Ok(HttpResponse::Unauthorized().finish());
+                }
+
+                let consent_response = serde_json::from_str::<UserOauthConsentResponse>(consent_response.unwrap().as_str())
+                    .expect("fail to parse user oauth consent response json");
+
+                let auth_flow_data = dragonfly_service.send(services::dragonfly::DragonflyCommand::Get(consent_response.request_id.clone()))
+                    .await??;
+
+                if auth_flow_data.is_none() {
+                    return Ok(HttpResponse::Unauthorized().finish());
+                }
+
+                let auth_flow_data = auth_flow_data.unwrap();
+
+                let auth_flow_data = serde_json::from_str::<AuthorizeCodeFlowData>(&auth_flow_data)
+                    .expect("fail to parse auth flow data json");
+
+                let code_challenge = match auth_flow_data.code_challenge_method {
+                    CodeChallengeMethod::S256 => {
+                        let mut hasher = Sha256::new();
+                        hasher.update(body.code_verifier.as_ref().unwrap());
+                        let digest = hasher.finalize();
+
+                        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(digest)
+                    },
+                    CodeChallengeMethod::Blake3 => todo!(),
+                };
+
+                if code_challenge == auth_flow_data.code_challenge {
+                    dragonfly_service.send(services::dragonfly::DragonflyCommand::Del(consent_response.request_id))
+                        .await??;
+
+                    let opts = GenerateOauthTokenOpts {
+                        scope: consent_response.scope,
+                        subject: consent_response.subject,
+                        audience: consent_response.audience,
+                        access_token_expiry: 480,
+                        refresh_token_expiry: 2419200,
+                    };
+
+                    let token_resp = generate_oauth_token(opts, &jwt_secret.0)?;
+
+                    return Ok(HttpResponse::Ok().json(token_resp));
+                }
+            }
+        },
+    }
+
+    Ok(HttpResponse::Unauthorized().finish())
+}
+
 pub fn routes(cfg: &mut web::ServiceConfig) {
     tracing::info!("registering oauth routes");
 
     cfg.route("scopes", web::get().to(list_oauth_scope));
 
     cfg.route("clients", web::get().to(get_oauth_client));
+
+    cfg.route("authorize", web::post().to(authorize));
+
+    cfg.route("token", web::post().to(token));
 
     tracing::info!("oauth routes registered");
 }
@@ -151,4 +387,57 @@ pub fn admin_routes(cfg: &mut web::ServiceConfig) {
     cfg.route("clients/{id}", web::delete().to(remove_oauth_client));
 
     tracing::info!("oauth admin routes registered");
+}
+
+fn generate_oauth_token(opts: GenerateOauthTokenOpts, jwt_secret: &EncodingKey) -> Result<TokenResponseDto, AppError> {
+    let jwt_algo = jsonwebtoken::Header::new(jsonwebtoken::Algorithm::EdDSA);
+
+    let now = Utc::now();
+
+    let expiry = now.add(Duration::seconds(opts.access_token_expiry as i64));
+
+    let access_token_expires_in = expiry.sub(now).to_std().unwrap();
+
+    let access_token = jsonwebtoken::encode(
+        &jwt_algo,
+        &JwtClaims{
+            id: nanoid::nanoid!(32),
+            sub: opts.subject.clone(),
+            iat: now.timestamp() as usize,
+            nbf: now.timestamp() as usize,
+            exp: expiry.timestamp() as usize,
+            typ: common::JwtType::OauthAccess,
+            aud: opts.audience,
+            iss: common::OAUTH_ISSUER_URL.to_string(),
+            scope: opts.scope,
+            ctx: None,
+        },
+        jwt_secret
+    )?;
+
+    let expiry = now.add(Duration::seconds(opts.refresh_token_expiry as i64));
+
+    let refresh_token = jsonwebtoken::encode(
+        &jwt_algo,
+        &JwtClaims{
+            id: nanoid::nanoid!(32),
+            sub: opts.subject,
+            iat: now.timestamp() as usize,
+            nbf: now.timestamp() as usize,
+            exp: expiry.timestamp() as usize,
+            typ: common::JwtType::OauthRefresh,
+            aud: vec![common::OAUTH_ISSUER_URL.to_string()],
+            iss: common::OAUTH_ISSUER_URL.to_string(),
+            scope: vec![],
+            ctx: None,
+        },
+        jwt_secret
+    )?;
+
+    Ok(TokenResponseDto {
+        expires_in: access_token_expires_in.as_secs(),
+        token_type: "Bearer".to_string(),
+        access_token: access_token,
+        refresh_token: Some(refresh_token),
+    })
 }

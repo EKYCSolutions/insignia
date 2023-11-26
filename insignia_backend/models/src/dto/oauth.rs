@@ -38,3 +38,25 @@ pub struct OauthClientMutationDto {
     pub audiences: Vec<String>,
     pub redirect_uris: Vec<String>,
 }
+
+#[derive(serde::Deserialize)]
+pub struct UserOauthConsentApproveRequestDto {
+    pub request_id: String,
+    pub consents: Vec<UserOauthConsentObjectRequestDto>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct UserOauthConsentObjectRequestDto {
+    pub oauth_scope_id: i32,
+    pub zanzibar_subject: String,
+    pub zanzibar_relative: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct UserOauthConsentResponse {
+    pub client_id: String,
+    pub request_id: String,
+    pub subject: String,
+    pub scope: Vec<String>,
+    pub audience: Vec<String>,
+}
