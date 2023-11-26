@@ -1,11 +1,15 @@
 
 use std::fmt;
 
+use redis::RedisError;
+use actix::MailboxError;
 use actix_web::{ResponseError, http::StatusCode, HttpResponse};
 
 #[derive(Debug)]
 pub enum AppErrorCode {
     Argon2UnknownError,
+    DragonflyUnknownError,
+    JsonWebTokenUnknownError,
 }
 
 impl AppErrorCode {
@@ -47,6 +51,28 @@ impl From<argon2::password_hash::Error> for AppError {
     }
 }
 
+impl From<RedisError> for AppError {
+    fn from(value: RedisError) -> Self {
+        match value {
+            _ => Self {
+                code: Some(AppErrorCode::DragonflyUnknownError),
+                message: Some(value.to_string()),
+            }
+        }
+    }
+}
+
+impl From<jsonwebtoken::errors::Error> for AppError {
+    fn from(value: jsonwebtoken::errors::Error) -> Self {
+        match value {
+            _ => Self {
+                code: Some(AppErrorCode::JsonWebTokenUnknownError),
+                message: Some(value.to_string()),
+            }
+        }
+    }
+}
+
 impl AppError {
     fn message(&self) -> String {
         match self {
@@ -61,6 +87,17 @@ impl From<sea_orm::DbErr> for AppHttpErrorResponseDto {
             _ => Self {
                 code: "insig@99".to_string(),
                 message: "unexpected error".to_string()
+            }
+        }
+    }
+}
+
+impl From<MailboxError> for AppHttpErrorResponseDto {
+    fn from(value: MailboxError) -> Self {
+        match value {
+            _ => Self {
+                code: "insig@99".to_string(),
+                message: "unexpected error".to_string(),
             }
         }
     }
