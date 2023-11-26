@@ -1,3 +1,4 @@
+use sea_orm::prelude::Uuid;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub enum OauthClientType {
@@ -45,7 +46,7 @@ pub struct UserOauthConsentApproveRequestDto {
     pub consents: Vec<UserOauthConsentObjectRequestDto>,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Clone)]
 pub struct UserOauthConsentObjectRequestDto {
     pub oauth_scope_id: i32,
     pub zanzibar_subject: String,
@@ -54,9 +55,22 @@ pub struct UserOauthConsentObjectRequestDto {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct UserOauthConsentResponse {
-    pub client_id: String,
     pub request_id: String,
-    pub subject: String,
+    pub subject: Uuid,
     pub scope: Vec<String>,
+    pub client_id: String,
+    pub oauth_client_id: i32,
     pub audience: Vec<String>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename(deserialize = "snake_case"))]
+pub enum QueryFilter<IdType> {
+    In(Vec<IdType>),
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename(deserialize = "snake_case"))]
+pub enum OauthScopeFilter<IdType> {
+    Id(QueryFilter<IdType>),
 }

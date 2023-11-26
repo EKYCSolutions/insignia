@@ -4,7 +4,7 @@ use sea_orm::{DbErr, DatabaseConnection, EntityTrait, ActiveValue, ActiveModelTr
 use models::{
     oauth_scopes::{Entity as OauthScope, self},
     oauth_clients::{Entity as OauthClient, self},
-    delegable_user_permissions::{Entity as DelegableUserPermission, self}, oauth::OauthClientMutationDto,
+    delegable_user_permissions::{Entity as DelegableUserPermission, self}, oauth::{OauthClientMutationDto, OauthScopeFilter},
 };
 
 pub struct Query;
@@ -12,6 +12,25 @@ pub struct Query;
 pub struct Mutation;
 
 impl Query {
+    pub async fn list_oauth_scope_with_filters(
+        db_conn: &DatabaseConnection,
+        filters: Vec<OauthScopeFilter<i32>>,
+    ) -> Result<Vec<oauth_scopes::Model>, DbErr> {
+        let mut query = OauthScope::find();
+
+        for filter in filters {
+            match filter {
+                OauthScopeFilter::Id(models::oauth::QueryFilter::In(ids)) => {
+                    query = query
+                        .filter(oauth_scopes::Column::Id.is_in(ids))
+                },
+                _ => (),
+            }
+        }
+
+        Ok(query.all(db_conn).await?)
+    }
+
     pub async fn list_oauth_scopes(db_conn: &DatabaseConnection) -> Result<Vec<oauth_scopes::Model>, DbErr> {
         Ok(
             OauthScope::find()
