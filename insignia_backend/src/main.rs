@@ -2,12 +2,14 @@
 use actix::Actor;
 use clap::Parser;
 use once_cell::sync::Lazy;
-use common::SESSION_COOKIE_SETTING;
 use jsonwebtoken::{EncodingKey, DecodingKey};
 use tracing_subscriber::{filter, prelude::*};
 use webauthn_rs::{WebauthnBuilder, prelude::Url};
 use actix_session::{SessionMiddleware, storage::RedisActorSessionStore};
 use actix_web::{HttpServer, App, web, cookie::Key, middleware::Logger, http};
+
+use common::SESSION_COOKIE_SETTING;
+use services::dragonfly::DragonflyService;
 
 static JWT_SECRET: Lazy<(EncodingKey, DecodingKey)> = Lazy::new(|| {
     (
@@ -66,6 +68,12 @@ async fn main() -> std::io::Result<()> {
     tracing::info!("cors enabled - {}", args.is_cors_enabled);
     tracing::info!("cors origins - {:?}", args.cors_origins);
 
+    let dragonfly_db_conn_str = &args.dragonflydb_conn_str;
+
+    let dragonfly_actor_addr = DragonflyService::start(DragonflyService {
+        client: redis::Client::open(format!("redis://{dragonfly_db_conn_str}")).expect("fail to connect to dragonfly"),
+    });
+
     if &args.mode == "admin" {
         tracing::info!("starting insignia admin server");
         tracing::info!("listening on {}:{}", args.listen_addr, args.port);
@@ -74,6 +82,7 @@ async fn main() -> std::io::Result<()> {
             let cors_origins = args.cors_origins.clone();
 
             App::new()
+            .app_data(web::Data::new(dragonfly_actor_addr.clone()))
             .app_data(web::Data::new(db_conn.clone()))
             .wrap(Logger::default())
             .wrap(
@@ -130,6 +139,7 @@ async fn main() -> std::io::Result<()> {
         }
 
         App::new()
+        .app_data(web::Data::new(dragonfly_actor_addr.clone()))
         .app_data(web::Data::new(db_conn.clone()))
         .wrap(Logger::default())
         .wrap(
