@@ -9,11 +9,17 @@ use actix_web::{http::header::HeaderMap, HttpRequest, cookie::Cookie};
 
 use models::users;
 
+pub static OAUTH_ISSUER_URL: Lazy<String> = Lazy::new(|| {
+    std::env::var("INSIGNIA_OAUTH_ISSUER_URL")
+        .expect("fail to read INSIGNIA_OAUTH_ISSUER_URL env var")
+});
+
 #[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 pub enum JwtType {
     Login,
     Refresh,
     OauthAccess,
+    OauthRefresh,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -22,12 +28,12 @@ pub struct JwtClaims {
     pub iat: usize,
     pub nbf: usize,
     pub exp: usize,
-    pub aud: String,
+    pub aud: Vec<String>,
     pub iss: String,
     pub sub: String,
     pub typ: JwtType,
     pub ctx: Option<String>,
-    pub scope: Option<String>
+    pub scope: Vec<String>,
 }
 
 pub static FRONTEND_URL: Lazy<String> = Lazy::new(|| {
@@ -74,10 +80,10 @@ pub fn build_login_session<'a>(
                 nbf: now.timestamp() as usize,
                 exp: access_expiry.timestamp() as usize,
                 typ: JwtType::Login,
-                aud: FRONTEND_URL.clone(),
+                aud: vec![FRONTEND_URL.clone()],
                 iss: FRONTEND_URL.clone(),
                 ctx: Some(token_context.clone()),
-                scope: None,
+                scope: vec![],
             },
             jwt_secret
         ).expect("fail to create jwt token");
@@ -93,10 +99,10 @@ pub fn build_login_session<'a>(
                     nbf: now.timestamp() as usize,
                     exp: refresh_expiry.timestamp() as usize,
                     typ: JwtType::Refresh,
-                    aud: FRONTEND_URL.clone(),
+                    aud: vec![FRONTEND_URL.clone()],
                     iss: FRONTEND_URL.clone(),
                     ctx: Some(token_context),
-                    scope: None,
+                    scope: vec![],
                 },
                 jwt_secret
             ).expect("fail to create jwt token")
