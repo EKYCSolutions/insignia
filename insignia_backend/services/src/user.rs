@@ -1,6 +1,6 @@
 
 use argon2::PasswordHasher;
-use models::users::{Entity as User, self};
+use models::{users::{Entity as User, self}, users_oauth_consents::{Entity as UserOauthConsent, self}, oauth_clients, users_oauth_authorized_clients};
 use sea_orm::{
     DbErr,
     Condition,
@@ -8,7 +8,10 @@ use sea_orm::{
     QueryFilter,
     ColumnTrait,
     ActiveModelTrait,
-    DatabaseConnection, prelude::{Uuid, DateTimeWithTimeZone},
+    TransactionTrait,
+    TransactionError,
+    DatabaseConnection,
+    prelude::{Uuid, DateTimeWithTimeZone},
 };
 
 pub struct Query;
@@ -57,6 +60,18 @@ impl Query {
         .filter(users::Column::Id.eq(id))
         .all(db)
         .await
+    }
+
+    pub async fn list_oauth_consents(
+        db: &DatabaseConnection,
+        client: models::users_oauth_authorized_clients::Model,
+    ) -> Result<Vec<users_oauth_consents::Model>, DbErr> {
+        Ok(
+            UserOauthConsent::find()
+                .filter(users_oauth_consents::Column::UserOauthAuthorizedClientId.eq(client.id))
+                .all(db)
+                .await?
+        )
     }
 }
 
@@ -148,5 +163,54 @@ impl Mutation {
         user.update(db).await?;
 
         Ok(())
+    }
+
+    pub async fn oauth_consent_for_app_to_act_on_behalf_of_user(
+        db: &DatabaseConnection,
+        user: models::users::Model,
+        oauth_client: oauth_clients::Model,
+        consents_object: Vec<models::oauth::UserOauthConsentObjectRequestDto>
+    ) -> Result<(users_oauth_authorized_clients::Model, Vec<users_oauth_consents::Model>), TransactionError<DbErr>> {
+        let result = db.transaction::<_, (users_oauth_authorized_clients::Model, Vec<users_oauth_consents::Model>), DbErr>(|txn| {
+            Box::pin(async move {
+                let mut consents_actions = vec![];
+
+                let authorized_client = users_oauth_authorized_clients::ActiveModel {
+                    token_key: sea_orm::ActiveValue::Set(nanoid::nanoid!(32)),
+                    user_id: sea_orm::ActiveValue::Set(user.id),
+                    oauth_client_id: sea_orm::ActiveValue::Set(oauth_client.id),
+                    ..Default::default()
+                }
+                    .insert(txn)
+                    .await?;
+
+                for cons_obj in consents_object {
+                    let consent = users_oauth_consents::ActiveModel {
+                        zanzibar_subject: sea_orm::ActiveValue::Set(cons_obj.zanzibar_subject),
+                        zanzibar_relative: sea_orm::ActiveValue::Set(cons_obj.zanzibar_relative),
+                        user_oauth_authorized_client_id: sea_orm::ActiveValue::Set(authorized_client.id),
+                        ..Default::default()
+                    };
+
+                    consents_actions.push(consent.insert(txn));
+                }
+
+                let consents_actions = futures::future::join_all(consents_actions)
+                    .await
+                    .iter()
+                    .map(|result| {
+                        result
+                            .as_ref()
+                            .unwrap()
+                            .to_owned()
+                    })
+                    .collect::<Vec<users_oauth_consents::Model>>();
+
+                Ok((authorized_client, consents_actions))
+            })
+        })
+            .await?;
+
+        Ok(result)
     }
 }
