@@ -58,7 +58,7 @@ impl MigrationTrait for Migration {
 
 #[derive(Iden)]
 #[iden(rename = "users_oauth_consents")]
-enum UserOauthConstent {
+pub enum UserOauthConstent {
     Table,
     Id,
     UserId,

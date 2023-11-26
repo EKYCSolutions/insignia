@@ -9,6 +9,7 @@ mod m20231125_020513_add_users_permissions_model;
 mod m20231125_020825_add_oauth_scopes_model;
 mod m20231125_021216_add_oauth_client_model;
 mod m20231125_021604_add_users_oauth_consents_model;
+mod m20231126_092614_add_user_oauth_authorized_client_model;
 
 pub struct Migrator;
 
@@ -25,6 +26,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20231125_020825_add_oauth_scopes_model::Migration),
             Box::new(m20231125_021216_add_oauth_client_model::Migration),
             Box::new(m20231125_021604_add_users_oauth_consents_model::Migration),
+            Box::new(m20231126_092614_add_user_oauth_authorized_client_model::Migration),
         ]
     }
 }

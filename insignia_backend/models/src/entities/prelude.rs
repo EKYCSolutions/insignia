@@ -4,6 +4,7 @@ pub use super::delegable_user_permissions::Entity as DelegableUserPermissions;
 pub use super::oauth_clients::Entity as OauthClients;
 pub use super::oauth_scopes::Entity as OauthScopes;
 pub use super::users::Entity as Users;
+pub use super::users_oauth_authorized_clients::Entity as UsersOauthAuthorizedClients;
 pub use super::users_oauth_consents::Entity as UsersOauthConsents;
 pub use super::users_webauthn_credentials::Entity as UsersWebauthnCredentials;
 pub use super::webauthn_allow_origins::Entity as WebauthnAllowOrigins;

@@ -21,13 +21,13 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(has_many = "super::users_oauth_consents::Entity")]
-    UsersOauthConsents,
+    #[sea_orm(has_many = "super::users_oauth_authorized_clients::Entity")]
+    UsersOauthAuthorizedClients,
 }
 
-impl Related<super::users_oauth_consents::Entity> for Entity {
+impl Related<super::users_oauth_authorized_clients::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::UsersOauthConsents.def()
+        Relation::UsersOauthAuthorizedClients.def()
     }
 }
 

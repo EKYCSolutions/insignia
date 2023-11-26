@@ -8,24 +8,17 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
-    pub user_id: Uuid,
+    pub user_id: Option<Uuid>,
     pub zanzibar_subject: String,
     pub zanzibar_relative: String,
     pub oauth_scope_id: i32,
-    pub oauth_client_id: i32,
+    pub oauth_client_id: Option<i32>,
     pub created_at: DateTimeWithTimeZone,
+    pub user_oauth_authorized_client_id: i32,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(
-        belongs_to = "super::oauth_clients::Entity",
-        from = "Column::OauthClientId",
-        to = "super::oauth_clients::Column::Id",
-        on_update = "NoAction",
-        on_delete = "Cascade"
-    )]
-    OauthClients,
     #[sea_orm(
         belongs_to = "super::oauth_scopes::Entity",
         from = "Column::OauthScopeId",
@@ -35,19 +28,13 @@ pub enum Relation {
     )]
     OauthScopes,
     #[sea_orm(
-        belongs_to = "super::users::Entity",
-        from = "Column::UserId",
-        to = "super::users::Column::Id",
+        belongs_to = "super::users_oauth_authorized_clients::Entity",
+        from = "Column::UserOauthAuthorizedClientId",
+        to = "super::users_oauth_authorized_clients::Column::Id",
         on_update = "NoAction",
         on_delete = "Cascade"
     )]
-    Users,
-}
-
-impl Related<super::oauth_clients::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::OauthClients.def()
-    }
+    UsersOauthAuthorizedClients,
 }
 
 impl Related<super::oauth_scopes::Entity> for Entity {
@@ -56,9 +43,9 @@ impl Related<super::oauth_scopes::Entity> for Entity {
     }
 }
 
-impl Related<super::users::Entity> for Entity {
+impl Related<super::users_oauth_authorized_clients::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::Users.def()
+        Relation::UsersOauthAuthorizedClients.def()
     }
 }
 
