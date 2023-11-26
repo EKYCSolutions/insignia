@@ -119,19 +119,16 @@ async fn update_well_known_config(
         .await
         .expect("fail to get well known config");
 
-    let mut well_known_config_model = None;
+    let well_known_config_model =
+        if let Some(val) = well_known_config {
+            val.into()
+        } else {
+            well_known_configs::ActiveModel {
+                ..Default::default()
+            }
+        };
 
-    if let Some(val) = well_known_config {
-        well_known_config_model = Some(val.into());
-    } else {
-        well_known_config_model = Some(well_known_configs::ActiveModel {
-            ..Default::default()
-        });
-    }
-
-    let model = well_known_config_model
-        .as_mut()
-        .unwrap();
+    let mut model = well_known_config_model;
 
     model.assetlink_android_package_name = sea_orm::ActiveValue::Set(Some(body.assetlink_android_package_name.to_owned()));
     model.assetlink_android_sha256_fingerprints = sea_orm::ActiveValue::Set(body.assetlink_android_sha256_fingerprints.to_owned());
@@ -162,15 +159,10 @@ static JWK_CONFIG: Lazy<Vec<CoreJsonWebKey>> = Lazy::new(|| {
     ]
 });
 
-static OAUTH_ISSUER_URL: Lazy<String> = Lazy::new(|| {
-    std::env::var("INSIGNIA_OAUTH_ISSUER_URL")
-        .expect("fail to read INSIGNIA_OAUTH_ISSUER_URL env var")
-});
-
 async fn oidc_discovery(
     db_conn: web::Data<sea_orm::DatabaseConnection>
 ) -> Result<HttpResponse, AppHttpErrorResponseDto> {
-    let issuer_url = &*OAUTH_ISSUER_URL;
+    let issuer_url = &*common::OAUTH_ISSUER_URL;
 
     let mut scopes_supported = vec![
         Scope::new("openid".to_string()),
@@ -190,8 +182,6 @@ async fn oidc_discovery(
         JsonWebKeySetUrl::new(format!("{issuer_url}/oauth/jwk")).unwrap(),
         vec![
             ResponseTypes::new(vec![CoreResponseType::Code]),
-            ResponseTypes::new(vec![CoreResponseType::Token]),
-            ResponseTypes::new(vec![CoreResponseType::IdToken]),
         ],
         vec![CoreSubjectIdentifierType::Pairwise],
         vec![CoreJwsSigningAlgorithm::EdDsaEd25519],
