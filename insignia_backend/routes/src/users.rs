@@ -278,6 +278,10 @@ pub async fn oauth_consent(
     body: web::Json<models::oauth::UserOauthConsentApproveRequestDto>,
     dragonfly_service: web::Data<Addr<DragonflyService>>,
 ) -> Result<HttpResponse, AppHttpErrorResponseDto> {
+    if user_context.is_jwt_verified && user_context.user.is_some() {
+        return Ok(HttpResponse::Unauthorized().finish());
+    }
+
     let auth_flow_data = dragonfly_service.send(services::dragonfly::DragonflyCommand::Get(body.request_id.to_owned()))
         .await??;
 
