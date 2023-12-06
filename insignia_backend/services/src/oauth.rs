@@ -24,7 +24,6 @@ impl Query {
                     query = query
                         .filter(oauth_scopes::Column::Id.is_in(ids))
                 },
-                _ => (),
             }
         }
 
