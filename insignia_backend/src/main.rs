@@ -61,18 +61,28 @@ async fn main() -> std::io::Result<()> {
         .await
         .expect("fail to connect to postgres");
 
-    let sms_otp_service = services::sms_otp::CoreSMSOtp::new_twilio(&args.twilio_account_sid, &args.twilio_auth_token, &args.twilio_verify_sid);
-
-    let sms_otp_service = sms_otp_service.start();
-
-    tracing::info!("cors enabled - {}", args.is_cors_enabled);
-    tracing::info!("cors origins - {:?}", args.cors_origins);
-
     let dragonfly_db_conn_str = &args.dragonflydb_conn_str;
 
     let dragonfly_actor_addr = DragonflyService::start(DragonflyService {
         client: redis::Client::open(format!("redis://{dragonfly_db_conn_str}")).expect("fail to connect to dragonfly"),
     });
+
+    let sms_otp_service = match args.sms_otp_provider.as_str() {
+        "twilio" => services::sms_otp::CoreSMSOtp::new_twilio(&args.twilio_account_sid, &args.twilio_auth_token, &args.twilio_verify_sid),
+        "infobip" => services::sms_otp::CoreSMSOtp::new_infobip(
+            &args.infobip_base_url,
+            &args.infobip_api_key,
+            &args.infobip_twofa_app_id,
+            &args.infobip_twofa_message_template_id,
+            dragonfly_actor_addr.clone()
+        ),
+        _ => panic!("unsupported sms otp provider"),
+    };
+
+    let sms_otp_service = sms_otp_service.start();
+
+    tracing::info!("cors enabled - {}", args.is_cors_enabled);
+    tracing::info!("cors origins - {:?}", args.cors_origins);
 
     if &args.mode == "admin" {
         tracing::info!("starting insignia admin server");
