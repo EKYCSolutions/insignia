@@ -257,9 +257,11 @@ async fn verify_phone_otp_attempt(
 }
 
 async fn verify_phone_otp(
+    req: HttpRequest,
     body: web::Form<VerifyPhoneOtpReqDto>,
     db_conn: web::Data::<sea_orm::DatabaseConnection>,
-    sms_otp_service: web::Data<actix::Addr<CoreSMSOtp>>
+    sms_otp_service: web::Data<actix::Addr<CoreSMSOtp>>,
+    jwt_secret: web::Data<&Lazy<(EncodingKey, DecodingKey)>>
 ) -> HttpResponse {
     let result = sms_otp_service
         .send(services::sms_otp::CoreSMSOtpCommand::Verify(body.phone.to_owned(), body.code.to_owned()))
@@ -278,7 +280,7 @@ async fn verify_phone_otp(
                 let result =
                     services::user::Mutation::update_user(
                         &db_conn,
-                        user,
+                        user.clone(),
                         services::user::UserUpdate{
                             name: None,
                             phone: None,
@@ -292,8 +294,13 @@ async fn verify_phone_otp(
                     .await;
 
                 if let Ok(()) = result {
-                    return HttpResponse::NoContent().finish();
-                }
+                    let (token, refresh_token, fgp) = build_login_session(&user, &jwt_secret.0, &req);
+
+                        return HttpResponse::Ok()
+                            .cookie(fgp)
+                            .cookie(refresh_token)
+                            .json(models::login::LoginRespDto{ access_token: token });
+                    }
 
                 HttpResponse::UnprocessableEntity().finish()
             },
