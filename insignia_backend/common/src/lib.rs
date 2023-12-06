@@ -212,4 +212,19 @@ pub struct Args {
 
     #[arg(long, required = false, env = "INSIGNIA_TWILIO_AUTH_TOKEN", help = "twilio auth token")]
     pub twilio_auth_token: String,
+
+    #[arg(long, required = false, env = "INSIGNIA_INFOBIP_BASE_URL", help = "infobip baseurl")]
+    pub infobip_base_url: String,
+
+    #[arg(long, required = false, env = "INSIGNIA_INFOBIP_API_KEY", help = "infobip api key")]
+    pub infobip_api_key: String,
+
+    #[arg(long, required = false, env = "INSIGNIA_INFOBIP_2FA_APP_ID", help = "infobip 2fa application id")]
+    pub infobip_twofa_app_id: String,
+
+    #[arg(long, required = false, env = "INSIGNIA_INFOBIP_2FA_MESSAGE_TEMPLATE_ID", help = "infobip 2fa message template id")]
+    pub infobip_twofa_message_template_id: String,
+
+    #[arg(long, required = false, env = "INSIGNIA_SMS_OTP_PROVIDER", help = "sms one time passcode provider")]
+    pub sms_otp_provider: String,
 }
