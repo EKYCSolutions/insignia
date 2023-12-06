@@ -144,6 +144,12 @@ impl From<AppError> for AppHttpErrorResponseDto {
     }
 }
 
+impl ToString for AppError {
+    fn to_string(&self) -> String {
+        format!("{}:{}", self.code.as_ref().unwrap().to_string(), self.message())
+    }
+}
+
 impl ResponseError for AppHttpErrorResponseDto {
     fn status_code(&self) -> StatusCode {
         match self.code {
