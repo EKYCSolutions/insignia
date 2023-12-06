@@ -91,7 +91,7 @@ impl CoreSMSOtp {
         Self::Twilio(
             client,
             TwilioServiceConfig {
-                base_url: "https://verify.twilio.com/v2/Services/".to_string(),
+                base_url: "https://verify.twilio.com/v2/Services".to_string(),
                 verify_sid: twilio_verify_sid.to_string(),
             }
         )
