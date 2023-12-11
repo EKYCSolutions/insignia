@@ -5,6 +5,7 @@ use actix::Addr;
 use base64::Engine;
 use common::JwtClaims;
 use once_cell::sync::Lazy;
+use sea_orm::prelude::Uuid;
 use sha2::{Sha256, Digest};
 use chrono::{Utc, Duration};
 use jsonwebtoken::{EncodingKey, DecodingKey};
@@ -98,8 +99,8 @@ pub struct TokenResponseDto {
 }
 
 pub struct GenerateOauthTokenOpts {
-    pub subject: String,
     pub scope: Vec<String>,
+    pub subject: Option<Uuid>,
     pub audience: Vec<String>,
     pub token_key: Option<String>,
     pub access_token_expiry: u32,
@@ -291,7 +292,7 @@ async fn token(
 
                     let opts = GenerateOauthTokenOpts {
                         scope: vec![],
-                        subject: "".to_string(),
+                        subject: None,
                         audience: oauth_client.audiences,
                         token_key: None,
                         access_token_expiry: access_expiry_2_hour_as_sec,
@@ -347,7 +348,7 @@ async fn token(
 
                     let opts = GenerateOauthTokenOpts {
                         scope: consent_response.scope,
-                        subject: consent_response.subject.to_string(),
+                        subject: Some(consent_response.subject),
                         audience: consent_response.audience,
                         token_key: None,
                         access_token_expiry: access_expiry_16_min_as_sec,
@@ -413,7 +414,7 @@ fn generate_oauth_token(opts: GenerateOauthTokenOpts, jwt_secret: &EncodingKey) 
         &jwt_algo,
         &JwtClaims{
             id: nanoid::nanoid!(32),
-            sub: opts.subject.clone(),
+            sub: opts.subject.or(Some(Uuid::new_v4())).unwrap(),
             iat: now.timestamp() as usize,
             nbf: now.timestamp() as usize,
             exp: expiry.timestamp() as usize,
@@ -432,7 +433,7 @@ fn generate_oauth_token(opts: GenerateOauthTokenOpts, jwt_secret: &EncodingKey) 
         &jwt_algo,
         &JwtClaims{
             id: nanoid::nanoid!(32),
-            sub: opts.subject,
+            sub: opts.subject.or(Some(Uuid::new_v4())).unwrap(),
             iat: now.timestamp() as usize,
             nbf: now.timestamp() as usize,
             exp: expiry.timestamp() as usize,

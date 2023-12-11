@@ -61,7 +61,7 @@ impl FromRequest for UserContext {
             return Box::pin(async move {
                 let user = services::user::Query::get_user_info_by_id(
                     &db_conn,
-                    Uuid::from_str(&claims.sub).unwrap()
+                    claims.sub
                 ).await.unwrap();
 
                 let token_ctx = build_token_context(

@@ -2,6 +2,7 @@ use std::{env, ops::Add};
 
 use clap::Parser;
 use once_cell::sync::Lazy;
+use sea_orm::prelude::Uuid;
 use jsonwebtoken::EncodingKey;
 use cookie::time::OffsetDateTime;
 use chrono::{DateTime, Utc, Duration, Days};
@@ -30,7 +31,7 @@ pub struct JwtClaims {
     pub exp: usize,
     pub aud: Vec<String>,
     pub iss: String,
-    pub sub: String,
+    pub sub: Uuid,
     pub typ: JwtType,
     pub ctx: Option<String>,
     pub scope: Vec<String>,
@@ -75,7 +76,7 @@ pub fn build_login_session<'a>(
             &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::EdDSA),
             &JwtClaims{
                 id: jwt_id,
-                sub: user.id.to_string(),
+                sub: user.id,
                 iat: now.timestamp() as usize,
                 nbf: now.timestamp() as usize,
                 exp: access_expiry.timestamp() as usize,
@@ -94,7 +95,7 @@ pub fn build_login_session<'a>(
                 &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::EdDSA),
                 &JwtClaims{
                     id: nanoid::nanoid!(32),
-                    sub: user.id.to_string(),
+                    sub: user.id,
                     iat: now.timestamp() as usize,
                     nbf: now.timestamp() as usize,
                     exp: refresh_expiry.timestamp() as usize,
