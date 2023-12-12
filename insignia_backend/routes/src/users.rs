@@ -184,17 +184,7 @@ async fn refresh_session(
 ) -> HttpResponse {
     let (_, _, refresh_cookie_name, fgp_cookie_name) = *SESSION_COOKIE_SETTING;
 
-    let auth_data =
-        match (req.cookie(fgp_cookie_name), req.cookie(refresh_cookie_name)) {
-            (Some(fgp), Some(refresh)) => {
-                Some((fgp, refresh))
-            }
-            _ => None
-        };
-
-    if auth_data.is_some() {
-        let (fgp, refresh_token) = auth_data.unwrap();
-
+    if let (Some(fgp), Some(refresh_token)) = (req.cookie(fgp_cookie_name), req.cookie(refresh_cookie_name)) {
         let refresh_validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::EdDSA);
 
         if let Ok(TokenData{ claims, header: _ }) = jsonwebtoken::decode::<JwtClaims>(
@@ -202,7 +192,7 @@ async fn refresh_session(
             &jwt_secret.1,
             &refresh_validation
         ) {
-            let user_id = Uuid::from_slice(claims.sub.as_bytes()).unwrap();
+            let user_id = claims.sub;
 
             if let Ok(user) = services::user::Query::get_user_info_by_id(&db_conn, user_id).await {
                 let iat = DateTime::<Utc>::from_naive_utc_and_offset(NaiveDateTime::from_timestamp_opt(claims.iat as i64, 0).unwrap(), Utc);
