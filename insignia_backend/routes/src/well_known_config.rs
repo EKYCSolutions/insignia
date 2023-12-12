@@ -33,18 +33,19 @@ struct UpdateWellKnownConfigDto {
 
 async fn apple_app_site_association(
     db_conn:  web::Data<sea_orm::DatabaseConnection>
-) -> HttpResponse {
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
     let well_known_config = WellKnownConfig::find()
         .one(db_conn.as_ref())
-        .await
-        .expect("fail to get well known config")
-        .expect("fail to find well known config");
+        .await?;
 
-    HttpResponse::Ok()
+    let app_ids = well_known_config
+        .map_or(vec![], |c| c.apple_app_site_association_ios_app_ids);
+
+    Ok(HttpResponse::Ok()
         .json(serde_json::json!({
             "appclips": {"apps": []},
             "applinks": {
-                "details": well_known_config.apple_app_site_association_ios_app_ids
+                "details": app_ids
                     .iter()
                     .map(|app_id| {
                         serde_json::json!({
@@ -55,21 +56,26 @@ async fn apple_app_site_association(
                     .collect::<Vec<serde_json::Value>>()
             },
             "webcredentials": {
-                "apps": well_known_config.apple_app_site_association_ios_app_ids
+                "apps": app_ids
             }
-        }))
+        })))
 }
 
 async fn google_assetlinks(
     db_conn:  web::Data<sea_orm::DatabaseConnection>
-) -> HttpResponse {
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
     let well_known_config = WellKnownConfig::find()
         .one(db_conn.as_ref())
-        .await
-        .expect("fail to get well known config")
-        .expect("fail to find well known config");
+        .await?;
 
-    HttpResponse::Ok()
+    let android_package_name = well_known_config
+        .as_ref()
+        .map_or(None, |c| c.assetlink_android_package_name.to_owned());
+
+    let android_sha256_cert_fingerprints = well_known_config
+        .map_or(vec![], |c| c.assetlink_android_sha256_fingerprints);
+
+    Ok(HttpResponse::Ok()
         .json(serde_json::json!([{
             "relation": [
                 "delegate_permission/common.handle_all_urls",
@@ -77,8 +83,8 @@ async fn google_assetlinks(
             ],
             "target": {
                 "namespace": "android_app",
-                "package_name": well_known_config.assetlink_android_package_name,
-                "sha256_cert_fingerprints": well_known_config.assetlink_android_sha256_fingerprints
+                "package_name": android_package_name,
+                "sha256_cert_fingerprints": android_sha256_cert_fingerprints
             }
         }, {
             "relation": [
@@ -90,34 +96,36 @@ async fn google_assetlinks(
                 "site": "",
                 "sha256_cert_fingerprints": None::<String>,
             }
-        }]))
+        }])))
 }
 
 async fn get_well_known_config(
     db_conn:  web::Data<sea_orm::DatabaseConnection>
-) -> HttpResponse {
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
     let well_known_config = WellKnownConfig::find()
         .one(db_conn.as_ref())
-        .await
-        .expect("fail to get well known config");
+        .await?;
 
     if let Some(val) = well_known_config {
-        return HttpResponse::Ok()
-            .json(val);
+        return Ok(
+            HttpResponse::Ok()
+                .json(val)
+        );
     }
 
-    HttpResponse::NotFound()
+    Ok(
+        HttpResponse::NotFound()
         .finish()
+    )
 }
 
 async fn update_well_known_config(
     body: web::Json<UpdateWellKnownConfigDto>,
     db_conn:  web::Data<sea_orm::DatabaseConnection>
-) -> HttpResponse {
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
     let well_known_config = WellKnownConfig::find()
         .one(db_conn.as_ref())
-        .await
-        .expect("fail to get well known config");
+        .await?;
 
     let well_known_config_model =
         if let Some(val) = well_known_config {
@@ -137,15 +145,15 @@ async fn update_well_known_config(
     let result = model
         .to_owned()
         .save(db_conn.as_ref())
-        .await
-        .expect("fail to update well known config");
+        .await?;
 
     let result = result
-        .try_into_model()
-        .expect("fail to convert well known config to model");
+        .try_into_model()?;
 
-    HttpResponse::Ok()
-        .json(result)
+    Ok(
+        HttpResponse::Ok()
+            .json(result)
+    )
 }
 
 static JWK_CONFIG: Lazy<Vec<CoreJsonWebKey>> = Lazy::new(|| {

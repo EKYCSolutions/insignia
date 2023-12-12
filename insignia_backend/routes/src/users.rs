@@ -56,55 +56,74 @@ impl From<models::users_oauth_authorized_clients::Model> for OauthAuthorizedClie
     }
 }
 
-async fn check_user(query: web::Query<UserQueryDto>, db_conn: web::Data<sea_orm::DatabaseConnection>) -> HttpResponse {
-    if let Ok(Some(_)) = services::user::Query::get_existence(&db_conn, &query.identifier).await {
-        return HttpResponse::NoContent().finish();
+async fn check_user(
+    query: web::Query<UserQueryDto>,
+    db_conn: web::Data<sea_orm::DatabaseConnection>
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
+    let user = services::user::Query::get_existence(&db_conn, &query.identifier)
+        .await?;
+
+    if let Some(_) = user {
+        return Ok(HttpResponse::NoContent().finish());
     }
 
-    HttpResponse::NotFound().finish()
+    Ok(HttpResponse::NotFound().finish())
 }
 
-async fn get_user_info(query: web::Query<UserQueryDto>, db_conn: web::Data<sea_orm::DatabaseConnection>) -> HttpResponse {
-    if let Ok(u) = services::user::Query::get_user_info(&db_conn, &query.identifier).await {
-        if u.len() > 0 {
-            return HttpResponse::Ok().json(UserInfoRespDto::from(u[0].clone()));
-        }
+async fn get_user_info(
+    query: web::Query<UserQueryDto>,
+    db_conn: web::Data<sea_orm::DatabaseConnection>
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
+    let mut user = services::user::Query::get_user_info(&db_conn, &query.identifier)
+        .await?;
+
+    if user.len() > 0 {
+        return Ok(HttpResponse::Ok().json(UserInfoRespDto::from(user.pop().unwrap())));
     }
 
-    HttpResponse::NotFound().finish()
+    Ok(HttpResponse::NotFound().finish())
 }
 
 async fn create_user(
     session: Session,
     body: web::Form<UserCreateReqDto>,
     db_conn: web::Data<sea_orm::DatabaseConnection>
-) -> HttpResponse {
-    if let Ok(user_id) = services::user::Mutation::create_user(&db_conn, &body.name, body.phone.to_owned(), body.email.to_owned(), body.password.to_owned()).await {
-        if body.password.is_some() {
-            return HttpResponse::NoContent().finish();
-        }
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
+    let user_id = services::user::Mutation::create_user(
+            &db_conn,
+            &body.name,
+            body.phone.to_owned(),
+            body.email.to_owned(),
+            body.password.to_owned()
+        )
+            .await?;
 
-        session
-        .insert("register", user_id)
-        .expect("fail to save register session");
+    if body.password.is_some() {
+        return Ok(HttpResponse::NoContent().finish());
     }
 
-    HttpResponse::NoContent().finish()
+    session
+        .insert("register", user_id)?;
+
+    Ok(HttpResponse::NoContent().finish())
 }
 
 fn verify_recovery_data(user: &models::users::Model, input_recovery_data: &str) -> Result<bool, AppError> {
-    let recovery_data = user.recovery_data.clone().unwrap();
+    let recovery_data = user.recovery_data
+        .clone()
+        .unwrap();
 
     let recovery_data: Vec<&str> = recovery_data
         .split(".")
         .collect();
 
     if let Ok(salt) = argon2::password_hash::Salt::from_b64(recovery_data[0]) {
-        let recovery_data_hash = argon2::Argon2::default().hash_password(
-            input_recovery_data.as_bytes(),
-            salt
-        )?
-        .to_string();
+        let recovery_data_hash = argon2::Argon2::default()
+            .hash_password(
+                input_recovery_data.as_bytes(),
+                salt
+            )?
+            .to_string();
 
         let (_, part) = recovery_data_hash.split_at(recovery_data_hash.len() / 2);
 
@@ -132,12 +151,13 @@ async fn set_recovery_data(
     body: web::Form<SetRecoveryDataReqDto>
 ) -> Result<HttpResponse, AppHttpErrorResponseDto> {
     if user_context.is_jwt_verified {
-        let user = user_context.user.unwrap();
+        let user = user_context.user
+            .unwrap();
 
         if user.recovery_data.is_some() {
             if body.recovery_data.is_none() || !verify_recovery_data(&user, body.recovery_data.to_owned().unwrap().as_str())? {
                 return Ok(HttpResponse::Forbidden().finish());
-            }
+            } 
         }
 
         if let Ok(()) = services::user::Mutation::set_recovery_data(
@@ -181,7 +201,7 @@ async fn refresh_session(
     req: HttpRequest,
     db_conn: web::Data<sea_orm::DatabaseConnection>,
     jwt_secret: web::Data<&Lazy<(EncodingKey, DecodingKey)>>,
-) -> HttpResponse {
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
     let (_, _, refresh_cookie_name, fgp_cookie_name) = *SESSION_COOKIE_SETTING;
 
     if let (Some(fgp), Some(refresh_token)) = (req.cookie(fgp_cookie_name), req.cookie(refresh_cookie_name)) {
@@ -194,31 +214,39 @@ async fn refresh_session(
         ) {
             let user_id = claims.sub;
 
-            if let Ok(user) = services::user::Query::get_user_info_by_id(&db_conn, user_id).await {
-                let iat = DateTime::<Utc>::from_naive_utc_and_offset(NaiveDateTime::from_timestamp_opt(claims.iat as i64, 0).unwrap(), Utc);
-                let access_exp = iat.add(Duration::minutes(16));
+            let user = services::user::Query::get_user_info_by_id(&db_conn, user_id)
+                .await?;
 
-                let token_ctx = common::build_token_context(
+            let iat = DateTime::<Utc>::from_naive_utc_and_offset(
+                NaiveDateTime::from_timestamp_opt(claims.iat as i64, 0)
+                        .unwrap(),
+                    Utc
+                );
+            let access_exp = iat.add(Duration::minutes(16));
+
+            let token_ctx = common::build_token_context(
+                &user[0].0,
+                &req.headers().clone(),
+                fgp.value(),
+                &iat,
+                &access_exp
+            );
+
+            if claims.ctx == Some(token_ctx) {
+                let (access_token, refresh_token, fgp) = build_login_session(
                     &user[0].0,
-                    &req.headers().clone(),
-                    fgp.value(),
-                    &iat,
-                    &access_exp
+                    &jwt_secret.0, &req
                 );
 
-                if claims.ctx == Some(token_ctx) {
-                    let (access_token, refresh_token, fgp) = build_login_session(&user[0].0, &jwt_secret.0, &req);
-
-                    return HttpResponse::Ok()
-                        .cookie(fgp)
-                        .cookie(refresh_token)
-                        .json(models::login::LoginRespDto{ access_token });
-                }
+                return Ok(HttpResponse::Ok()
+                    .cookie(fgp)
+                    .cookie(refresh_token)
+                    .json(models::login::LoginRespDto{ access_token }));
             }
         }
     }
 
-    HttpResponse::Unauthorized().finish()
+    Ok(HttpResponse::Unauthorized().finish())
 }
 
 async fn logout(req: HttpRequest) -> HttpResponse {

@@ -9,6 +9,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use webauthn_rs::{Webauthn, prelude::{RegisterPublicKeyCredential, PasskeyRegistration, PublicKeyCredential, Passkey, PasskeyAuthentication}};
 
 use common::build_login_session;
+use models::http_error::AppHttpErrorResponseDto;
 use super::extractors::user_context::UserContext;
 use services::{user_webauthn_credential::UserWebauthnCredData, sms_otp::CoreSMSOtp};
 
@@ -375,29 +376,29 @@ async fn login_password(
     body: web::Form::<PasswordLoginReqDto>,
     db_conn: web::Data::<sea_orm::DatabaseConnection>,
     jwt_secret: web::Data<&Lazy<(EncodingKey, DecodingKey)>>
-) -> HttpResponse {
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
     let user = services::user::Query::get_user_info_by_id(&db_conn, body.user_id)
-        .await
-        .expect("fail to get user info by id");
+        .await?
+        .pop();
 
-    if user.len() > 0 {
-        let user = user[0].0.to_owned();
+    if let Some(user) = user {
+        let user = user.0;
 
         if let Some(password) = user.password.clone() {
-            let hashed_password = argon2::password_hash::PasswordHash::new(&password).unwrap();
+            let hashed_password = argon2::password_hash::PasswordHash::new(&password)?;
 
             if argon2::Argon2::default().verify_password(body.password.as_bytes(), &hashed_password).is_ok() {
                 let (token, refresh_token, fgp) = build_login_session(&user, &jwt_secret.0, &req);
 
-                return HttpResponse::Ok()
+                return Ok(HttpResponse::Ok()
                     .cookie(fgp)
                     .cookie(refresh_token)
-                    .json(models::login::LoginRespDto{ access_token: token });
+                    .json(models::login::LoginRespDto{ access_token: token }));
             }
         }
     }
 
-    HttpResponse::Unauthorized().finish()
+    Ok(HttpResponse::Unauthorized().finish())
 }
 
 pub fn routes(cfg: &mut web::ServiceConfig) {
