@@ -14,3 +14,4 @@ sea-orm = { workspace = true }
 actix-web = { workspace = true }
 serde_json = { workspace = true }
 jsonwebtoken = { workspace = true }
+actix-session = { workspace = true }

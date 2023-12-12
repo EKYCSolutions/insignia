@@ -2230,6 +2230,7 @@ dependencies = [
  "serde",
  "serde_json",
  "services",
+ "tokio",
  "tonic",
  "tonic-build",
  "tracing",
@@ -2492,6 +2493,7 @@ name = "models"
 version = "0.1.0"
 dependencies = [
  "actix",
+ "actix-session",
  "actix-web",
  "argon2",
  "jsonwebtoken",
@@ -3851,10 +3853,12 @@ dependencies = [
  "futures-util",
  "models",
  "nanoid",
+ "prost",
  "redis",
  "sea-orm",
  "serde",
  "serde_json",
+ "tonic",
  "webauthn-rs",
 ]
 
@@ -4423,6 +4427,7 @@ dependencies = [
  "pin-project-lite",
  "signal-hook-registry",
  "socket2 0.5.4",
+ "tokio-macros",
  "windows-sys",
 ]
 
@@ -4434,6 +4439,17 @@ checksum = "30b74022ada614a1b4834de765f9bb43877f910cc8ce4be40e89042c9223a8bf"
 dependencies = [
  "pin-project-lite",
  "tokio",
+]
+
+[[package]]
+name = "tokio-macros"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "630bdcf245f78637c13ec01ffae6187cca34625e8c63150d424b59e55af2675e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.37",
 ]
 
 [[package]]
