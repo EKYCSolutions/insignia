@@ -4,11 +4,13 @@ use std::fmt;
 use sea_orm::DbErr;
 use redis::RedisError;
 use actix::MailboxError;
+use actix_session::SessionInsertError;
 use actix_web::{ResponseError, http::StatusCode, HttpResponse};
 
 #[derive(Debug)]
 pub enum AppErrorCode {
     Argon2UnknownError,
+    Argon2InvalidPassword,
     DragonflyUnknownError,
     JsonWebTokenUnknownError,
 }
@@ -43,6 +45,12 @@ impl fmt::Display for AppHttpErrorResponseDto {
 impl From<argon2::password_hash::Error> for AppError {
     fn from(value: argon2::password_hash::Error) -> Self {
         match value {
+            argon2::password_hash::Error::Password => {
+                Self {
+                    code: Some(AppErrorCode::Argon2InvalidPassword),
+                    message: Some("invalid password".to_string()),
+                }
+            },
             _ =>
                 Self {
                     code: Some(AppErrorCode::Argon2UnknownError),
@@ -55,9 +63,9 @@ impl From<argon2::password_hash::Error> for AppError {
 impl From<RedisError> for AppError {
     fn from(value: RedisError) -> Self {
         match value {
-            _ => Self {
+            val => Self {
                 code: Some(AppErrorCode::DragonflyUnknownError),
-                message: Some(value.to_string()),
+                message: Some(val.to_string()),
             }
         }
     }
@@ -66,9 +74,9 @@ impl From<RedisError> for AppError {
 impl From<jsonwebtoken::errors::Error> for AppError {
     fn from(value: jsonwebtoken::errors::Error) -> Self {
         match value {
-            _ => Self {
+            val => Self {
                 code: Some(AppErrorCode::JsonWebTokenUnknownError),
-                message: Some(value.to_string()),
+                message: Some(val.to_string()),
             }
         }
     }
@@ -77,7 +85,9 @@ impl From<jsonwebtoken::errors::Error> for AppError {
 impl AppError {
     fn message(&self) -> String {
         match self {
-            _ => "invalid request".to_string()
+            val => val.message
+                .as_ref()
+                .map_or(String::new(), |v| v.to_owned()),
         }
     }
 }
@@ -96,9 +106,9 @@ impl From<serde_json::Error> for AppHttpErrorResponseDto {
 impl From<sea_orm::TransactionError<DbErr>> for AppHttpErrorResponseDto {
     fn from(value: sea_orm::TransactionError<DbErr>) -> Self {
         match value {
-            _ => Self {
+            val => Self {
                 code: "insig@99".to_string(),
-                message: "unexpected error".to_string(),
+                message: val.to_string(),
             }
         }
     }
@@ -107,9 +117,9 @@ impl From<sea_orm::TransactionError<DbErr>> for AppHttpErrorResponseDto {
 impl From<sea_orm::DbErr> for AppHttpErrorResponseDto {
     fn from(value: sea_orm::DbErr) -> Self {
         match &value {
-            _ => Self {
+            val => Self {
                 code: "insig@99".to_string(),
-                message: "unexpected error".to_string()
+                message: val.to_string()
             }
         }
     }
@@ -118,9 +128,9 @@ impl From<sea_orm::DbErr> for AppHttpErrorResponseDto {
 impl From<MailboxError> for AppHttpErrorResponseDto {
     fn from(value: MailboxError) -> Self {
         match value {
-            _ => Self {
+            val => Self {
                 code: "insig@99".to_string(),
-                message: "unexpected error".to_string(),
+                message: val.to_string(),
             }
         }
     }
@@ -136,9 +146,31 @@ impl From<AppError> for AppHttpErrorResponseDto {
                 code: code.to_string(),
                 message: value.message(),
             },
-            _ => Self {
+            val => Self {
                 code: "insig@99".to_string(),
-                message: "unexpected error".to_string(),
+                message: val.to_string(),
+            }
+        }
+    }
+}
+
+impl From<SessionInsertError> for AppHttpErrorResponseDto {
+    fn from(value: SessionInsertError) -> Self {
+        match &value {
+            val => Self {
+                code: "insig@99".to_string(),
+                message: val.to_string(),
+            }
+        }
+    }
+}
+
+impl From<argon2::password_hash::Error> for AppHttpErrorResponseDto {
+    fn from(value: argon2::password_hash::Error) -> Self {
+        match value {
+            val => Self {
+                code: "insig@99".to_string(),
+                message: val.to_string()
             }
         }
     }
