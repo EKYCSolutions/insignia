@@ -10,7 +10,7 @@ use actix_web::{web, HttpResponse, HttpRequest};
 use chrono::{DateTime, Utc, NaiveDateTime, Duration};
 use jsonwebtoken::{TokenData, EncodingKey, DecodingKey};
 
-use crate::oauth::AuthorizeCodeFlowData;
+use super::oauth::AuthorizeCodeFlowData;
 use services::dragonfly::DragonflyService;
 use super::extractors::user_context::UserContext;
 use common::{JwtClaims, build_login_session, SESSION_COOKIE_SETTING};
@@ -34,6 +34,7 @@ struct UserCreateReqDto {
     phone: Option<String>,
     email: Option<String>,
     password: Option<String>,
+    extras_meta: Option<serde_json::Value>,
 }
 
 #[derive(serde::Serialize)]
@@ -86,7 +87,7 @@ async fn get_user_info(
 
 async fn create_user(
     session: Session,
-    body: web::Form<UserCreateReqDto>,
+    body: web::Json<UserCreateReqDto>,
     db_conn: web::Data<sea_orm::DatabaseConnection>
 ) -> Result<HttpResponse, AppHttpErrorResponseDto> {
     let user_id = services::user::Mutation::create_user(
@@ -94,7 +95,8 @@ async fn create_user(
             &body.name,
             body.phone.to_owned(),
             body.email.to_owned(),
-            body.password.to_owned()
+            body.password.to_owned(),
+            body.extras_meta.to_owned()
         )
             .await?;
 

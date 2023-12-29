@@ -107,13 +107,14 @@ impl Query {
 }
 
 impl Mutation {
-    pub async fn create_user(db: &DatabaseConnection, name: &str, phone: Option<String>, email: Option<String>, password: Option<String>) -> Result<Uuid, DbErr> {
+    pub async fn create_user(db: &DatabaseConnection, name: &str, phone: Option<String>, email: Option<String>, password: Option<String>, extras_meta: Option<serde_json::Value>) -> Result<Uuid, DbErr> {
         let mut user = users::ActiveModel {
             id: sea_orm::ActiveValue::Set(Uuid::new_v4()),
             name: sea_orm::ActiveValue::Set(String::from(name)),
             phone: sea_orm::ActiveValue::Set(phone),
             email: sea_orm::ActiveValue::Set(email),
             session_data: sea_orm::ActiveValue::Set(nanoid::nanoid!(64)),
+            extras_meta: sea_orm::ActiveValue::Set(extras_meta),
             ..Default::default()
         };
 
