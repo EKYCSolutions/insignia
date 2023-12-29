@@ -6,7 +6,9 @@ volumes:
 
 services:
   insignia_db:
-    image: postgres:16-alpine
+    build:
+      context: ../docker
+      dockerfile: postgres.Dockerfile
     ports:
       - 5432:5432
     environment:
@@ -20,6 +22,13 @@ services:
       interval: 8s
       timeout: 8s
       retries: 8
+
+  mock_1st_partner_integration:
+    image: kennethreitz/httpbin
+    ports:
+      - 8082:80
+    environment:
+      GUNICORN_CMD_ARGS: --capture-output --error-logfile - --access-logfile -
 
   dragonflydb:
     image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.10.0
