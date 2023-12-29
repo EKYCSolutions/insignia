@@ -206,25 +206,25 @@ pub struct Args {
     pub dragonflydb_conn_str: String,
 
     #[arg(long, required = false, env = "INSIGNIA_TWILIO_VERIFY_SID", help = "twilio verify sid")]
-    pub twilio_verify_sid: String,
+    pub twilio_verify_sid: Option<String>,
 
     #[arg(long, required = false, env = "INSIGNIA_TWILIO_ACCOUNT_SID", help = "twilio account sid")]
-    pub twilio_account_sid: String,
+    pub twilio_account_sid: Option<String>,
 
     #[arg(long, required = false, env = "INSIGNIA_TWILIO_AUTH_TOKEN", help = "twilio auth token")]
-    pub twilio_auth_token: String,
+    pub twilio_auth_token: Option<String>,
 
     #[arg(long, required = false, env = "INSIGNIA_INFOBIP_BASE_URL", help = "infobip baseurl")]
-    pub infobip_base_url: String,
+    pub infobip_base_url: Option<String>,
 
     #[arg(long, required = false, env = "INSIGNIA_INFOBIP_API_KEY", help = "infobip api key")]
-    pub infobip_api_key: String,
+    pub infobip_api_key: Option<String>,
 
     #[arg(long, required = false, env = "INSIGNIA_INFOBIP_2FA_APP_ID", help = "infobip 2fa application id")]
-    pub infobip_twofa_app_id: String,
+    pub infobip_twofa_app_id: Option<String>,
 
     #[arg(long, required = false, env = "INSIGNIA_INFOBIP_2FA_MESSAGE_TEMPLATE_ID", help = "infobip 2fa message template id")]
-    pub infobip_twofa_message_template_id: String,
+    pub infobip_twofa_message_template_id: Option<String>,
 
     #[arg(long, required = false, env = "INSIGNIA_SMS_OTP_PROVIDER", help = "sms one time passcode provider")]
     pub sms_otp_provider: String,
