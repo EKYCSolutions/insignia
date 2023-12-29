@@ -68,12 +68,16 @@ async fn main() -> std::io::Result<()> {
     });
 
     let sms_otp_service = match args.sms_otp_provider.as_str() {
-        "twilio" => services::sms_otp::CoreSMSOtp::new_twilio(&args.twilio_account_sid, &args.twilio_auth_token, &args.twilio_verify_sid),
+        "twilio" => services::sms_otp::CoreSMSOtp::new_twilio(
+            &args.twilio_account_sid.expect("twilio account sid not set"),
+            &args.twilio_auth_token.expect("twilio auth token not set"),
+            &args.twilio_verify_sid.expect("twilio verify sid not set")
+        ),
         "infobip" => services::sms_otp::CoreSMSOtp::new_infobip(
-            &args.infobip_base_url,
-            &args.infobip_api_key,
-            &args.infobip_twofa_app_id,
-            &args.infobip_twofa_message_template_id,
+            &args.infobip_base_url.expect("infobip base url not set"),
+            &args.infobip_api_key.expect("infobip api key not set"),
+            &args.infobip_twofa_app_id.expect("infobip twofa app id not set"),
+            &args.infobip_twofa_message_template_id.expect("infobip twofa message template id not set"),
             dragonfly_actor_addr.clone()
         ),
         _ => panic!("unsupported sms otp provider"),
@@ -111,6 +115,7 @@ async fn main() -> std::io::Result<()> {
                 .allowed_methods(vec!["GET", "PUT", "HEAD", "POST", "PATCH", "DELETE", "OPTIONS"])
                 .allowed_headers(vec![http::header::AUTHORIZATION,  http::header::ACCEPT, http::header::CONTENT_TYPE])
             )
+            .service(web::scope("/setting").configure(routes::setting::admin_routes))
             .service(web::scope("/configs/oauth").configure(routes::oauth::admin_routes))
             .service(web::scope("/configs/well-knowns").configure(routes::well_known_config::admin_routes))
             .service(web::scope("/configs/webauthn-allow-origins").configure(routes::config::admin_routes))
