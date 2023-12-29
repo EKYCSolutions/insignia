@@ -5,6 +5,7 @@ pub mod prelude;
 pub mod delegable_user_permissions;
 pub mod oauth_clients;
 pub mod oauth_scopes;
+pub mod settings;
 pub mod users;
 pub mod users_oauth_authorized_clients;
 pub mod users_oauth_consents;

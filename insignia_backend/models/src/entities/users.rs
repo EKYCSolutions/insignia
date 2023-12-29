@@ -21,6 +21,8 @@ pub struct Model {
     pub phone_verified_at: Option<DateTimeWithTimeZone>,
     pub email_verified_at: Option<DateTimeWithTimeZone>,
     pub twofa_enabled_at: Option<DateTimeWithTimeZone>,
+    #[sea_orm(column_type = "JsonBinary", nullable)]
+    pub extras_meta: Option<Json>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
