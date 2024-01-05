@@ -26,12 +26,12 @@ impl MigrationTrait for Migration {
                 order by id desc
                 limit 1;
 
-                if setting is not null and setting.integration_callback_url is not null and setting.integration_callback_api_key is not null then
+                if setting is not null and setting.webhook_receiver_url is not null and setting.webhook_receiver_api_key is not null then
                     select * into callback_resp
                     from http((
                         'POST',
-                        setting.integration_callback_url,
-                        array[http_header('x-api-key', setting.integration_callback_api_key)],
+                        setting.webhook_receiver_url,
+                        array[http_header('x-api-key', setting.webhook_receiver_api_key)],
                         'application/json',
                         json_build_object(
                             'event', event,

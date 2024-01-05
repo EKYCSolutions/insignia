@@ -20,8 +20,8 @@ impl MigrationTrait for Migration {
                             .auto_increment()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(Setting::IntegrationCallbackUrl).string().null())
-                    .col(ColumnDef::new(Setting::IntegrationCallbackApiKey).string().null())
+                    .col(ColumnDef::new(Setting::WebhookReceiverUrl).string().null())
+                    .col(ColumnDef::new(Setting::WebhookReceiverApiKey).string().null())
                     .col(ColumnDef::new(Setting::CreatedAt).timestamp_with_time_zone().default(Expr::current_timestamp()).not_null())
                     .to_owned(),
             )
@@ -67,7 +67,7 @@ impl MigrationTrait for Migration {
 enum Setting {
     Table,
     Id,
-    IntegrationCallbackUrl,
-    IntegrationCallbackApiKey,
+    WebhookReceiverUrl,
+    WebhookReceiverApiKey,
     CreatedAt,
 }

@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
-    pub integration_callback_url: Option<String>,
-    pub integration_callback_api_key: Option<String>,
+    pub webhook_receiver_url: Option<String>,
+    pub webhook_receiver_api_key: Option<String>,
     pub created_at: DateTimeWithTimeZone,
 }
 

@@ -5,8 +5,8 @@ use models::http_error::AppHttpErrorResponseDto;
 
 #[derive(serde::Deserialize)]
 struct SaveSettingRequestBodyDto {
-    integration_callback_url: Option<String>,
-    integration_callback_api_key: Option<String>,
+    webhook_receiver_url: Option<String>,
+    webhook_receiver_api_key: Option<String>,
 }
 
 async fn save_setting(
@@ -15,8 +15,8 @@ async fn save_setting(
 ) -> Result<HttpResponse, AppHttpErrorResponseDto> {
     services::setting::Mutation::save_setting(
         &db,
-        body.integration_callback_url.to_owned(),
-        body.integration_callback_api_key.to_owned()
+        body.webhook_receiver_url.to_owned(),
+        body.webhook_receiver_api_key.to_owned()
     )
         .await?;
 
