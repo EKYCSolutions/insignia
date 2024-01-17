@@ -1,9 +1,8 @@
 
-use std::{pin::Pin, str::FromStr};
+use std::pin::Pin;
 
 use futures_util::Future;
 use once_cell::sync::Lazy;
-use sea_orm::prelude::Uuid;
 use actix_web::{FromRequest, http::Error};
 use chrono::{DateTime, Utc, NaiveDateTime};
 use jsonwebtoken::{EncodingKey, DecodingKey, TokenData};
