@@ -1,0 +1,12 @@
+
+syntax = "proto3";
+
+package dev.insigniaoss.type;
+
+message User {
+  string id = 1;
+  string name = 2;
+  optional string email = 3;
+  optional string phone = 4;
+  map<string, string> extras_meta = 5;
+}
