@@ -12,15 +12,21 @@ tonic = { workspace = true }
 redis = { workspace = true }
 actix = { workspace = true }
 serde = { workspace = true }
+chrono = { workspace = true }
 blake3 = { workspace = true }
 argon2 = { workspace = true }
 nanoid = { workspace = true }
 sea-orm = { workspace = true }
 futures = { workspace = true }
+protobuf = { workspace = true }
+once_cell = { workspace = true }
 serde_json = { workspace = true }
+prost-types = { workspace = true }
 actix-utils = { workspace = true }
 webauthn-rs = { workspace = true }
+pbjson-types = { workspace = true }
 futures-util = { workspace = true }
+google-api-proto = { workspace = true }
 
 models = { path = "../models" }
 common = { path = "../common" }
