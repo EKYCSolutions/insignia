@@ -3,7 +3,7 @@ syntax = "proto3";
 
 package dev.insigniaoss.service.v0;
 
-import "type/user.proto";
+import "insigniaoss/type/user.proto";
 
 message ValidateUserContextReq {
   string access_token = 1;

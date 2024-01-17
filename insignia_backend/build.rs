@@ -9,8 +9,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .file_descriptor_set_path("./grpc/insigniaoss-integration-v0-descriptor.bin")
         .compile(
             &[
-                "./protos/type/user.proto",
-                "./protos/service/v0/integration.proto",
+                "./protos/insigniaoss/type/user.proto",
+                "./protos/insigniaoss/service/v0/integration.proto",
             ],
             &["./protos"]
         )?;
