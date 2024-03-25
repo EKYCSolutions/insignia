@@ -115,6 +115,7 @@ async fn main() -> std::io::Result<()> {
                 .allowed_methods(vec!["GET", "PUT", "HEAD", "POST", "PATCH", "DELETE", "OPTIONS"])
                 .allowed_headers(vec![http::header::AUTHORIZATION,  http::header::ACCEPT, http::header::CONTENT_TYPE])
             )
+            .service(web::scope("/users").configure(routes::users::admin_routes))
             .service(web::scope("/setting").configure(routes::setting::admin_routes))
             .service(web::scope("/configs/oauth").configure(routes::oauth::admin_routes))
             .service(web::scope("/configs/well-knowns").configure(routes::well_known_config::admin_routes))

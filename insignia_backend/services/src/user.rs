@@ -7,16 +7,7 @@ use models::{
     users_oauth_authorized_clients::{Entity as UserOauthAuthorizedClient, self},
 };
 use sea_orm::{
-    DbErr,
-    Condition,
-    EntityTrait,
-    QueryFilter,
-    ColumnTrait,
-    ActiveModelTrait,
-    TransactionTrait,
-    TransactionError,
-    DatabaseConnection,
-    prelude::{Uuid, DateTimeWithTimeZone},
+    prelude::{DateTimeWithTimeZone, Uuid}, ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QuerySelect, TransactionError, TransactionTrait
 };
 
 pub struct Query;
@@ -44,6 +35,19 @@ impl Query {
         )
         .one(db)
         .await
+    }
+
+    pub async fn list_users(
+        db: &DatabaseConnection,
+        limit: u64,
+        offset: u64
+    ) -> Result<Vec<(models::users::Model, Vec<models::users_webauthn_credentials::Model>)>, DbErr> {
+        User::find()
+            .find_with_related(models::users_webauthn_credentials::Entity)
+            .limit(Some(limit))
+            .offset(Some(offset))
+            .all(db)
+            .await
     }
 
     pub async fn get_user_info(db: &DatabaseConnection, identifier: &str) -> Result<Vec<(models::users::Model, Vec<models::users_webauthn_credentials::Model>)>, DbErr> {
@@ -197,6 +201,14 @@ impl Mutation {
         user.recovery_data = sea_orm::ActiveValue::Set(Some(format!("{salt}.{part}")));
 
         user.update(db).await?;
+
+        Ok(())
+    }
+
+    pub async fn remove_user(db: &DatabaseConnection, user_id: Uuid) -> Result<(), DbErr> {
+        users::Entity::delete_by_id(user_id)
+            .exec(db)
+            .await?;
 
         Ok(())
     }

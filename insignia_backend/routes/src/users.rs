@@ -3,12 +3,12 @@ use std::ops::Add;
 
 use actix::Addr;
 use once_cell::sync::Lazy;
-use sea_orm::prelude::Uuid;
 use actix_session::Session;
+use sea_orm::prelude::Uuid;
 use argon2::{PasswordHasher, PasswordVerifier};
 use actix_web::{web, HttpResponse, HttpRequest};
-use chrono::{DateTime, Utc, NaiveDateTime, Duration};
 use jsonwebtoken::{TokenData, EncodingKey, DecodingKey};
+use chrono::{DateTime, Duration, FixedOffset, NaiveDateTime, Utc};
 
 use super::oauth::AuthorizeCodeFlowData;
 use services::dragonfly::DragonflyService;
@@ -40,6 +40,64 @@ struct UserCreateReqDto {
 #[derive(serde::Serialize)]
 struct UserCreateRespDto {
     id: Uuid,
+}
+
+#[derive(serde::Deserialize)]
+struct ListUsersReqDto {
+    limit: u64,
+    offset: u64,
+}
+
+#[derive(serde::Serialize)]
+struct UserForAdmin {
+    id: Uuid,
+    name: String,
+    phone: Option<String>,
+    email: Option<String>,
+    password: Option<String>,
+    created_at: DateTime<FixedOffset>,
+    extras_meta: Option<serde_json::Value>,
+    phone_verified_at: Option<DateTime<FixedOffset>>,
+    email_verified_at: Option<DateTime<FixedOffset>>,
+    webauthn_credentials: Vec<UserWebauthnCredentialForAdmin>,
+}
+
+#[derive(serde::Serialize)]
+struct UserWebauthnCredentialForAdmin {
+    id: i32,
+    name: String,
+}
+
+impl From<(models::users::Model, Vec<models::users_webauthn_credentials::Model>)> for UserForAdmin {
+    fn from((user, user_webauthn_credentials): (models::users::Model, Vec<models::users_webauthn_credentials::Model>)) -> Self {
+        Self {
+            id: user.id,
+            name: user.name,
+            created_at: user.created_at,
+            extras_meta: user.extras_meta,
+            phone: user.phone.map(|p| {
+                let mut p = p;
+
+                p.replace_range(6..p.len()-6, "*");
+
+                p
+            }),
+            email: user.email.map(|em| {
+                let mut em = em;
+
+                em.replace_range(..em.find('@').unwrap(), "*");
+
+                em
+            }),
+            password: user.password.map(|_| "*".repeat(32)),
+            phone_verified_at: user.phone_verified_at,
+            email_verified_at: user.email_verified_at,
+            webauthn_credentials: user_webauthn_credentials
+                .into_iter()
+                .map(|uwc| UserWebauthnCredentialForAdmin{id: uwc.id, name: uwc.name})
+                .collect(),
+        }
+    }
 }
 
 #[derive(serde::Serialize)]
@@ -389,4 +447,38 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
     cfg.route("recovery-data", web::post().to(set_recovery_data));
 
     tracing::info!("users routes registered");
+}
+
+async fn remove_user(
+    id: web::Path<Uuid>,
+    db_conn: web::Data<sea_orm::DatabaseConnection>
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
+    services::user::Mutation::remove_user(&db_conn, *id)
+        .await?;
+
+    Ok(HttpResponse::NoContent().finish())
+}
+
+async fn list_users(
+    query: web::Query<ListUsersReqDto>,
+    db_conn: web::Data<sea_orm::DatabaseConnection>
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
+    let users = services::user::Query::list_users(&db_conn, query.limit, query.offset)
+        .await?;
+
+    let users: Vec<UserForAdmin> = users
+        .into_iter()
+        .map(UserForAdmin::from)
+        .collect();
+
+    Ok(HttpResponse::Ok().json(users))
+}
+
+pub fn admin_routes(cfg: &mut web::ServiceConfig) {
+    tracing::info!("registering users admin routes");
+
+    cfg.route("", web::get().to(list_users));
+    cfg.route("/{id}", web::delete().to(remove_user));
+
+    tracing::info!("users admin routes registered");
 }
