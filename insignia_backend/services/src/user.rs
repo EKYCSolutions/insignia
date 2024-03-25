@@ -25,9 +25,9 @@ pub struct Mutation;
 
 pub struct UserUpdate {
     pub name: Option<String>,
-    pub phone: Option<String>,
-    pub email: Option<String>,
-    pub password: Option<String>,
+    pub phone: Option<Option<String>>,
+    pub email: Option<Option<String>>,
+    pub password: Option<Option<String>>,
     pub session_data: Option<String>,
     pub email_verified_at: Option<DateTimeWithTimeZone>,
     pub phone_verified_at: Option<DateTimeWithTimeZone>,
@@ -134,12 +134,12 @@ impl Mutation {
     pub async fn update_user(db: &DatabaseConnection, user: models::users::Model, updates: UserUpdate) -> Result<(), DbErr> {
         let mut user: models::users::ActiveModel = user.into();
 
-        if updates.name.is_some() {
-            user.name = sea_orm::ActiveValue::Set(updates.name.unwrap());
+        if let Some(name) = updates.name {
+            user.name = sea_orm::ActiveValue::Set(name);
         }
 
-        if updates.session_data.is_some() {
-            user.session_data = sea_orm::ActiveValue::Set(updates.session_data.unwrap());
+        if let Some(session_data) = updates.session_data {
+            user.session_data = sea_orm::ActiveValue::Set(session_data);
         }
 
         if updates.email_verified_at.is_some() {
@@ -150,25 +150,29 @@ impl Mutation {
             user.phone_verified_at = sea_orm::ActiveValue::Set(updates.phone_verified_at);
         }
 
-        if updates.email.is_some() {
-            user.email = sea_orm::ActiveValue::Set(updates.email);
+        if let Some(email) = updates.email {
+            user.email = sea_orm::ActiveValue::Set(email);
             user.email_verified_at = sea_orm::ActiveValue::Set(None);
         }
 
-        if updates.phone.is_some() {
-            user.phone = sea_orm::ActiveValue::Set(updates.phone);
+        if let Some(phone) = updates.phone {
+            user.phone = sea_orm::ActiveValue::Set(phone);
             user.phone_verified_at = sea_orm::ActiveValue::Set(None);
         }
 
-        if updates.password.is_some() {
-            let salt = argon2::password_hash::SaltString::generate(&mut argon2::password_hash::rand_core::OsRng);
+        if let Some(password) = updates.password {
+            if let Some(password) = password {
+                let salt = argon2::password_hash::SaltString::generate(&mut argon2::password_hash::rand_core::OsRng);
 
-            user.password = sea_orm::ActiveValue::Set(Some(
-                argon2::Argon2::default()
-                    .hash_password(updates.password.unwrap().as_bytes(), &salt)
-                    .expect("fail to hash password")
-                    .to_string()
-            ));
+                user.password = sea_orm::ActiveValue::Set(Some(
+                    argon2::Argon2::default()
+                        .hash_password(password.as_bytes(), &salt)
+                        .expect("fail to hash password")
+                        .to_string()
+                ));
+            } else {
+                user.password = sea_orm::ActiveValue::Set(None);
+            }
         }
 
         user.update(db).await?;
