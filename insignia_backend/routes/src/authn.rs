@@ -544,7 +544,7 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
 
     cfg.route("webauthn/register", web::post().to(register_webauthn_initialize));
     cfg.route("webauthn/register", web::patch().to(register_webauthn_finalize));
-    cfg.route("webauthn/:id/remove", web::delete().to(remove_webauthn_credential));
+    cfg.route("webauthn/{id}/remove", web::delete().to(remove_webauthn_credential));
 
     cfg.route("webauthn/login", web::post().to(login_webauthn_initialize));
     cfg.route("webauthn/login", web::patch().to(login_webauthn_finalize));
