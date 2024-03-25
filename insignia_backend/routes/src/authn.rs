@@ -11,7 +11,7 @@ use webauthn_rs::{Webauthn, prelude::{RegisterPublicKeyCredential, PasskeyRegist
 use common::build_login_session;
 use models::http_error::AppHttpErrorResponseDto;
 use super::extractors::user_context::UserContext;
-use services::{user_webauthn_credential::UserWebauthnCredData, sms_otp::CoreSMSOtp};
+use services::{sms_otp::CoreSMSOtp, user_webauthn_credential::UserWebauthnCredData};
 
 #[derive(serde::Deserialize)]
 struct UserWebauthnRegiserReqDto {
@@ -40,17 +40,31 @@ struct PasswordLoginReqDto {
     password: String,
 }
 
+#[derive(serde::Deserialize, PartialEq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+enum AuthnMethod {
+    Email,
+    Passkey,
+    Password,
+    PhoneOtp,
+}
+
+#[derive(serde::Deserialize)]
+struct AuthnMethodRemoveReqDto {
+    auth_method_to_remove: AuthnMethod,
+}
+
 async fn register_webauthn_initialize(
     session: Session,
     user_context: UserContext,
     webauthn: web::Data<Webauthn>,
     db_conn: web::Data<sea_orm::DatabaseConnection>,
     body: web::Form<UserWebauthnRegiserReqDto>
-) -> HttpResponse {
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
     let register_session = session.get::<Uuid>("register").unwrap();
 
     if !user_context.is_jwt_verified && register_session.is_none() {
-        return HttpResponse::Unauthorized().finish();
+        return Ok(HttpResponse::Unauthorized().finish());
     }
 
     let user =
@@ -66,7 +80,8 @@ async fn register_webauthn_initialize(
             _ => None
         };
 
-    session.remove("webauthn-register");
+    session
+        .remove("webauthn-register");
 
     if user.is_some() {
         let (user, webauthn_creds) = user.unwrap();
@@ -82,17 +97,16 @@ async fn register_webauthn_initialize(
                 })
                 .collect()
         ) else {
-            return HttpResponse::InternalServerError().finish();
+            return Ok(HttpResponse::InternalServerError().finish());
         };
 
         session
-        .insert("webauthn-register", (&user.name, &body.display_name, user.id, registration))
-        .expect("fail to save webauthn-register session");
+            .insert("webauthn-register", (&user.name, &body.display_name, user.id, registration))?;
 
-        return HttpResponse::Ok().json(challenge);
+        return Ok(HttpResponse::Ok().json(challenge));
     }
 
-    HttpResponse::Unauthorized().finish()
+    Ok(HttpResponse::Unauthorized().finish())
 }
 
 async fn register_webauthn_finalize(
@@ -164,7 +178,7 @@ async fn login_webauthn_initialize(
             .iter()
             .map(|c| UserWebauthnCredData::from(c.to_owned()))
             .collect();
-        
+
         session
         .insert("webauthn-login", (body.user_id, creds, auth))
         .expect("fail to save webauthn-login session");
@@ -401,6 +415,122 @@ async fn login_password(
     Ok(HttpResponse::Unauthorized().finish())
 }
 
+async fn authn_method_remove(
+    user_context: UserContext,
+    body: web::Form<AuthnMethodRemoveReqDto>,
+    db_conn: web::Data<sea_orm::DatabaseConnection>,
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
+    let user = user_context.user;
+
+    if user.is_none() {
+        return Ok(HttpResponse::Unauthorized().finish());
+    }
+
+    let user = user.unwrap();
+
+    match body.auth_method_to_remove {
+        AuthnMethod::Email => {
+            if user.phone_verified_at.is_none() && user.password.is_none() && user_context.webauthn_credentials.is_empty() {
+                return Ok(HttpResponse::UnprocessableEntity().finish());
+            }
+
+            services::user::Mutation::update_user(
+                &db_conn,
+                user,
+                services::user::UserUpdate{
+                    name: None,
+                    phone: None,
+                    email: Some(None),
+                    password: None,
+                    session_data: None,
+                    email_verified_at: None,
+                    phone_verified_at: None,
+                }
+            )
+                .await?;
+        }
+
+        AuthnMethod::Passkey => {
+            if user.phone_verified_at.is_none() && user.password.is_none() && user.email_verified_at.is_none() {
+                return Ok(HttpResponse::UnprocessableEntity().finish());
+            }
+
+            services::user_webauthn_credential::Mutation::remove_all_webauthn_credential(&db_conn, user.id)
+                .await?;
+        }
+
+        AuthnMethod::Password => {
+            if user.phone_verified_at.is_none() && user.email_verified_at.is_none() && user_context.webauthn_credentials.is_empty() {
+                return Ok(HttpResponse::UnprocessableEntity().finish());
+            }
+
+            services::user::Mutation::update_user(
+                &db_conn,
+                user,
+                services::user::UserUpdate{
+                    name: None,
+                    phone: None,
+                    email: None,
+                    password: Some(None),
+                    session_data: None,
+                    email_verified_at: None,
+                    phone_verified_at: None,
+                }
+            )
+                .await?;
+        }
+
+        AuthnMethod::PhoneOtp => {
+            if user.email_verified_at.is_none() && user.password.is_none() && user_context.webauthn_credentials.is_empty() {
+                return Ok(HttpResponse::UnprocessableEntity().finish());
+            }
+
+            services::user::Mutation::update_user(
+                &db_conn,
+                user,
+                services::user::UserUpdate{
+                    name: None,
+                    phone: Some(None),
+                    email: None,
+                    password: None,
+                    session_data: None,
+                    email_verified_at: None,
+                    phone_verified_at: None,
+                }
+            )
+                .await?;
+        }
+    }
+
+    Ok(HttpResponse::NoContent().finish())
+}
+
+async fn remove_webauthn_credential(
+    id: web::Path<i32>,
+    user_context: UserContext,
+    db_conn: web::Data::<sea_orm::DatabaseConnection>
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
+    if user_context.user.is_none() {
+        return Ok(HttpResponse::Unauthorized().finish());
+    }
+
+    let user = user_context.user
+        .unwrap();
+
+    if user_context.webauthn_credentials.len() < 2 && user.email_verified_at.is_none() && user.phone_verified_at.is_none() && user.password.is_none() {
+        return Ok(HttpResponse::UnprocessableEntity().finish());
+    }
+
+    services::user_webauthn_credential::Mutation::remove_webauthn_credential(
+        &db_conn,
+        *id,
+        user.id
+    )
+        .await?;
+
+    Ok(HttpResponse::NoContent().finish())
+}
+
 pub fn routes(cfg: &mut web::ServiceConfig) {
     tracing::info!("registering authn routes");
 
@@ -414,9 +544,12 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
 
     cfg.route("webauthn/register", web::post().to(register_webauthn_initialize));
     cfg.route("webauthn/register", web::patch().to(register_webauthn_finalize));
+    cfg.route("webauthn/:id/remove", web::delete().to(remove_webauthn_credential));
 
     cfg.route("webauthn/login", web::post().to(login_webauthn_initialize));
     cfg.route("webauthn/login", web::patch().to(login_webauthn_finalize));
+
+    cfg.route("authn-method-remove", web::post().to(authn_method_remove));
 
     tracing::info!("authn routes registered");
 }
