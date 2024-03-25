@@ -65,6 +65,29 @@ impl Mutation {
         .await
     }
 
+    pub async fn remove_webauthn_credential(db: &DatabaseConnection, id: i32, user_id: Uuid) -> Result<bool, DbErr> {
+        let delete_result =
+            users_webauthn_credentials::Entity::delete_by_id(id)
+                .filter(users_webauthn_credentials::Column::UserId.eq(user_id))
+                .exec(db)
+                .await?;
+
+        if delete_result.rows_affected == 1 {
+            return Ok(true);
+        }
+
+        Ok(false)
+    }
+
+    pub async fn remove_all_webauthn_credential(db: &DatabaseConnection, user_id: Uuid) -> Result<(), DbErr> {
+        users_webauthn_credentials::Entity::delete_many()
+            .filter(users_webauthn_credentials::Column::UserId.eq(user_id))
+            .exec(db)
+            .await?;
+
+        Ok(())
+    }
+
     pub async fn update_webauthn_credentials_counter(db: &DatabaseConnection, creds: Vec<(UserWebauthnCredData, Passkey)>) -> Result<bool, DbErr> {
         let res =
             db.transaction::<_, (), DbErr>(|txn: &sea_orm::DatabaseTransaction| {
