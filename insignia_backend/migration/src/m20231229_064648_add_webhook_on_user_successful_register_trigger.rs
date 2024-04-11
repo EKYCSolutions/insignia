@@ -74,7 +74,7 @@ impl MigrationTrait for Migration {
                 perform send_integration_callback_event(
                     'UserDeleted',
                     json_build_object(
-                        'user_id', new.id
+                        'user_id', old.id
                     )
                 );
 

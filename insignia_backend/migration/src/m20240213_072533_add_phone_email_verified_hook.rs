@@ -58,9 +58,9 @@ impl MigrationTrait for Migration {
                     perform send_integration_callback_event(
                         'UserPasskeyRemoved',
                         json_build_object(
-                            'user_id', new.user_id,
-                            'passkey_id', new.id,
-                            'passkey_name', new.name
+                            'user_id', old.user_id,
+                            'passkey_id', old.id,
+                            'passkey_name', old.name
                         )
                     );
                 end if;
