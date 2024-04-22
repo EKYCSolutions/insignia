@@ -115,6 +115,7 @@ async fn main() -> std::io::Result<()> {
                 .allowed_methods(vec!["GET", "PUT", "HEAD", "POST", "PATCH", "DELETE", "OPTIONS"])
                 .allowed_headers(vec![http::header::AUTHORIZATION,  http::header::ACCEPT, http::header::CONTENT_TYPE])
             )
+            .service(web::scope("/healthz").configure(routes::system::routes))
             .service(web::scope("/users").configure(routes::users::admin_routes))
             .service(web::scope("/setting").configure(routes::setting::admin_routes))
             .service(web::scope("/configs/oauth").configure(routes::oauth::admin_routes))
@@ -189,8 +190,9 @@ async fn main() -> std::io::Result<()> {
         )
         .service(web::scope("/users").configure(routes::users::routes))
         .service(web::scope("/authn").configure(routes::authn::routes))
-        .service(web::scope("/.well-known").configure(routes::well_known_config::routes))
         .service(web::scope("/oauth").configure(routes::oauth::routes))
+        .service(web::scope("/healthz").configure(routes::system::routes))
+        .service(web::scope("/.well-known").configure(routes::well_known_config::routes))
     })
     .bind((args.listen_addr, args.port))?
     .run()

@@ -7,6 +7,7 @@ use models::http_error::AppError;
 #[derive(Message)]
 #[rtype(result = "Result<Option<String>, AppError>")]
 pub enum DragonflyCommand {
+    Ping,
     Get(String),
     Del(String),
     Set(String, String, SetOptions),
@@ -36,6 +37,7 @@ impl Handler<DragonflyCommand> for DragonflyService {
             .expect("fail to get dragonfly connection");
 
         let result = match msg {
+            DragonflyCommand::Ping => conn.set::<&str, &str, String>("healthz", "set")?,
             DragonflyCommand::Get(key) => conn.get::<String, String>(key)?,
             DragonflyCommand::Del(key) => conn.del::<String, String>(key)?,
             DragonflyCommand::Set(key, value, opts) => conn.set_options::<String, String, String>(key, value, opts)?,
