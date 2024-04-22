@@ -22,6 +22,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db_conn = sea_orm::Database::connect(args.db_conn_str)
         .await?;
 
+    let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
+
+    health_reporter
+        .set_serving::<services::integration::IntegrationServiceServer<services::integration::IntegrationService>>()
+        .await;
+
     let integration_service = services::integration::IntegrationService{
         db_conn: db_conn.clone(),
     };
@@ -31,6 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
 
     Server::builder()
+        .add_service(health_service)
         .add_service(services::integration::IntegrationServiceServer::new(integration_service))
         .add_service(reflection_server)
         .serve(address)
