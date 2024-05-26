@@ -5,7 +5,51 @@ volumes:
   dragonflydb:
 
 services:
+  spicedb_migrate:
+    restart: on-failure
+    image: authzed/spicedb:v1.28.0-amd64
+    command:
+      - migrate
+      - head
+      - --datastore-engine
+      - postgres
+      - --datastore-conn-uri
+      - postgres://spicedb:spicedb@spicedb_db:5432/spicedb?sslmode=disable
+    depends_on:
+      spicedb_db:
+        condition: service_healthy
+
+  spicedb:
+    restart: always
+    image: authzed/spicedb:v1.28.0-amd64
+    depends_on:
+      - spicedb_migrate
+    command:
+      - serve
+      - --grpc-preshared-key
+      - somerandomkeyhere
+      - --datastore-engine
+      - postgres
+      - --datastore-conn-uri
+      - postgres://spicedb:spicedb@spicedb_db:5432/spicedb?sslmode=disable
+    ports:
+      - 50051:50051
+
+  spicedb_db:
+    restart: always
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: spicedb
+      POSTGRES_PASSWORD: spicedb
+      POSTGRES_DATABASE: spicedb
+    healthcheck:
+      test: [CMD-SHELL, pg_isready]
+      interval: 8s
+      timeout: 8s
+      retries: 8
+
   insignia_db:
+    restart: always
     build:
       context: ../docker
       dockerfile: postgres.Dockerfile
@@ -23,8 +67,44 @@ services:
       timeout: 8s
       retries: 8
 
+  insignia_db_migrate: &insignia
+    restart: on-failure
+    build:
+      context: ./
+      dockerfile: ../insignia.Dockerfile
+    environment:
+      DATABASE_URL: postgres://insignia:supersecurepw@insignia_db/insignia
+    command: /opt/app/db-migration
+
+  insignia_frontend: &insignia_backend
+    <<: *insignia
+    restart: always
+    command: /opt/app/insignia --mode frontend
+    ports:
+      - 6969:6969
+    environment:
+      INSIGNIA_DEV_MODE: false
+      INSIGNIA_DB_CONN_STR: postgres://insignia:supersecurepw@insignia_db/insignia
+      INSIGNIA_SMS_OTP_PROVIDER: twilio
+      INSIGNIA_TWILIO_AUTH_TOKEN: abcdef
+      INSIGNIA_TWILIO_VERIFY_SID: abcdef
+      INSIGNIA_TWILIO_ACCOUNT_SID: abcdef
+
+  insignia_admin:
+    <<: *insignia_backend
+    command: /opt/app/insignia --mode admin
+    ports:
+      - 6970:6969
+
+  insignia_integration_server:
+    <<: *insignia_backend
+    command: /opt/app/integration_server
+    ports:
+      - 26969:26969
+
   mock_1st_partner_integration:
     image: kennethreitz/httpbin
+    restart: always
     ports:
       - 8082:80
     environment:
@@ -32,6 +112,7 @@ services:
 
   dragonflydb:
     image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.10.0
+    restart: always
     ports:
       - 6379:6379
     volumes:
