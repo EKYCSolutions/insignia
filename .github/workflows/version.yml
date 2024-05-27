@@ -1,0 +1,28 @@
+name: get-version
+
+on:
+  workflow_call:
+    outputs:
+      short_sha:
+        value: ${{ jobs.get-version.outputs.short_sha }}
+      project_version:
+        value: ${{ jobs.get-version.outputs.project_version }}
+
+jobs:
+  get-version:
+    runs-on: ubuntu-22.04
+
+    outputs:
+      short_sha: ${{ steps.get_short_sha.outputs.short_sha }}
+      project_version: ${{ steps.get_project_version.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: get latest version
+        id: get_project_version
+        run: echo -n "version=$(cat insignia_backend/Cargo.toml | grep version | head -n1 | egrep -o '[0-9.]+')" >> $GITHUB_OUTPUT
+
+      - name: get short sha
+        id: get_short_sha
+        run: echo -n "short_sha=${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT

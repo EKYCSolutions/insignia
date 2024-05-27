@@ -1,0 +1,46 @@
+name: insignia ci/cd
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - dev
+    paths-ignore:
+      - .gitignore
+      - .env.example
+      - readme.md
+      - changelog.md
+  pull_request:
+    types:
+      - ready_for_review
+    paths-ignore:
+      - .gitignore
+      - .env.example
+      - readme.md
+      - changelog.md
+  release:
+    types:
+      - published
+      - prereleased
+
+permissions:
+  issues: write
+  contents: write
+  packages: write
+  pull-requests: write
+
+jobs:
+  # tests:
+  #   uses: ./.github/workflows/tests.yml
+
+  version:
+    uses: ./.github/workflows/version.yml
+
+  build:
+    uses: ./.github/workflows/container.yml
+    needs:
+      - version
+    with:
+      image_version_tag: ${{ github.ref_name == 'dev' && 'dev' || github.ref_name == 'main' && 'latest' || github.event_name == 'release' && needs.version.outputs.project_version }}
+    if: ${{ contains(github.ref_name, 'dev') || contains(github.ref_name, 'main') || github.event_name == 'release' }}
