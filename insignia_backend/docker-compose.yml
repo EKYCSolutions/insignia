@@ -97,7 +97,7 @@ services:
 
   insignia_integration_server:
     <<: *insignia_backend
-    command: /opt/app/integration_server
+    command: /opt/app/insignia-integration-server
     ports:
       - 26969:26969
 
