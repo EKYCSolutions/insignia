@@ -1,10 +1,10 @@
 
 use std::pin::Pin;
 
+use chrono::DateTime;
 use futures_util::Future;
 use once_cell::sync::Lazy;
 use actix_web::{FromRequest, http::Error};
-use chrono::{DateTime, Utc, NaiveDateTime};
 use jsonwebtoken::{EncodingKey, DecodingKey, TokenData};
 
 use models::{users, users_webauthn_credentials};
@@ -67,8 +67,8 @@ impl FromRequest for UserContext {
                     &user[0].0,
                     &headers,
                     fgp.value(),
-                    &DateTime::<Utc>::from_naive_utc_and_offset(NaiveDateTime::from_timestamp_opt(claims.iat as i64, 0).unwrap(), Utc),
-                    &DateTime::<Utc>::from_naive_utc_and_offset(NaiveDateTime::from_timestamp_opt(claims.exp as i64, 0).unwrap(), Utc)
+                    &DateTime::from_timestamp(claims.iat as i64, 0).unwrap(),
+                    &DateTime::from_timestamp(claims.exp as i64, 0).unwrap()
                 );
 
                 Ok(UserContext {

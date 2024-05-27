@@ -5,10 +5,10 @@ use actix::Addr;
 use once_cell::sync::Lazy;
 use actix_session::Session;
 use sea_orm::prelude::Uuid;
+use chrono::{DateTime, Duration, FixedOffset};
 use argon2::{PasswordHasher, PasswordVerifier};
 use actix_web::{web, HttpResponse, HttpRequest};
 use jsonwebtoken::{TokenData, EncodingKey, DecodingKey};
-use chrono::{DateTime, Duration, FixedOffset, NaiveDateTime, Utc};
 
 use super::oauth::AuthorizeCodeFlowData;
 use services::dragonfly::DragonflyService;
@@ -217,7 +217,7 @@ async fn set_recovery_data(
         if user.recovery_data.is_some() {
             if body.recovery_data.is_none() || !verify_recovery_data(&user, body.recovery_data.to_owned().unwrap().as_str())? {
                 return Ok(HttpResponse::Forbidden().finish());
-            } 
+            }
         }
 
         if let Ok(()) = services::user::Mutation::set_recovery_data(
@@ -277,11 +277,8 @@ async fn refresh_session(
             let user = services::user::Query::get_user_info_by_id(&db_conn, user_id)
                 .await?;
 
-            let iat = DateTime::<Utc>::from_naive_utc_and_offset(
-                NaiveDateTime::from_timestamp_opt(claims.iat as i64, 0)
-                        .unwrap(),
-                    Utc
-                );
+            let iat = DateTime::from_timestamp(claims.iat as i64, 0)
+                .unwrap();
             let access_exp = iat.add(Duration::minutes(16));
 
             let token_ctx = common::build_token_context(
