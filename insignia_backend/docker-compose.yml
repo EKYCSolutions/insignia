@@ -1,4 +1,3 @@
-version: '3.8'
 
 volumes:
   insignia_db:
@@ -71,7 +70,7 @@ services:
     restart: on-failure
     build:
       context: ./
-      dockerfile: ../insignia.Dockerfile
+      dockerfile: ../docker/insignia.Dockerfile
     environment:
       DATABASE_URL: postgres://insignia:supersecurepw@insignia_db/insignia
     command: /opt/app/db-migration
