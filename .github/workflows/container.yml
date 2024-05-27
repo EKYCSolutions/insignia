@@ -33,7 +33,7 @@ jobs:
         with:
           push: true
           context: ./docker
-          file: ./postgres.Dockerfile
+          file: ./docker/postgres.Dockerfile
           tags: ghcr.io/${{ github.repository }}:postgresql-${{ inputs.image_version_tag }}
 
   build-insignia-image:
@@ -61,5 +61,5 @@ jobs:
         with:
           push: true
           context: ./insignia_backend
-          file: ../docker/insigia.Dockerfile
+          file: ./docker/insignia.Dockerfile
           tags: ghcr.io/${{ github.repository }}:${{ inputs.image_version_tag }}
