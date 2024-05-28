@@ -9,15 +9,22 @@ RUN apk add --no-cache --virtual .build-deps\
     pkgconfig\
     build-base\
     openssl-dev\
+    protobuf-dev\
     openssl-libs-static &&\
     rustup target add x86_64-unknown-linux-musl
 
 COPY . .
 
-RUN CC=clang PKG_CONFIG=pkg-config cargo build --release --target=x86_64-unknown-linux-musl &&\
-    CC=clang PKG_CONFIG=pkg-config cargo build --release --target=x86_64-unknown-linux-musl --manifest-path migration/Cargo.toml
+# multiple cargo check
+# as hack to get build.rs
+# to output protobuf def
+RUN cargo check || true &&\
+    cargo check || true &&\
+    cargo check || true &&\
+    cargo build --release --target=x86_64-unknown-linux-musl &&\
+    cargo build --release --target=x86_64-unknown-linux-musl --manifest-path migration/Cargo.toml
 
-FROM rust:1.74-alpine
+FROM alpine:3.20
 
 WORKDIR /opt/app
 
