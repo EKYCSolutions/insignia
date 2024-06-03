@@ -78,7 +78,7 @@ impl From<(models::users::Model, Vec<models::users_webauthn_credentials::Model>)
             phone: user.phone.map(|p| {
                 let mut p = p;
 
-                p.replace_range(6..p.len()-6, "*");
+                p.replace_range(6..p.len()-2, &"*".repeat(p.len()-2-6));
 
                 p
             }),
