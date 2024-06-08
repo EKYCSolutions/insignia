@@ -49,7 +49,7 @@ pub static SESSION_COOKIE_SETTING: Lazy<(actix_web::cookie::SameSite, bool, &str
     if *IS_DEV_MODE {
         (actix_web::cookie::SameSite::None, true, "Refresh", "Fgp")
     } else {
-        (actix_web::cookie::SameSite::Strict, true, "__Host-Refresh", "__Host-Fpg")
+        (actix_web::cookie::SameSite::Strict, true, "__Host-Refresh", "__Host-Fgp")
     }
 });
 
