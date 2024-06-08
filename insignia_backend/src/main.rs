@@ -80,6 +80,7 @@ async fn main() -> std::io::Result<()> {
             &args.infobip_twofa_message_template_id.expect("infobip twofa message template id not set"),
             dragonfly_actor_addr.clone()
         ),
+        "mock" => services::sms_otp::CoreSMSOtp::new_mock(),
         _ => panic!("unsupported sms otp provider"),
     };
 

@@ -77,9 +77,14 @@ pub struct InfobipServiceConfig {
 pub enum CoreSMSOtp {
     Twilio(awc::Client, TwilioServiceConfig),
     Infobip(awc::Client, InfobipServiceConfig),
+    Mock(),
 }
 
 impl CoreSMSOtp {
+    pub fn new_mock() -> Self {
+        Self::Mock()
+    }
+
     pub fn new_twilio(twilio_account_sid: &str, twilio_auth_token: &str, twilio_verify_sid: &str) -> Self {
         let client = awc::ClientBuilder::new()
             .basic_auth(
@@ -119,6 +124,12 @@ impl SMSOtp for CoreSMSOtp {
         let to = to.to_string();
 
         match self {
+            Self::Mock() => {
+                Box::pin(async {
+                    Ok(SMSOtpResult::SendResult(true))
+                })
+            },
+
             Self::Twilio(client, config) => {
                 Box::pin(async {
                     let resp = client
@@ -133,6 +144,7 @@ impl SMSOtp for CoreSMSOtp {
                     Err(SMSOtpError::FailToSendCode(format!("twilio error: {}", resp.status())))
                 })
             },
+
             Self::Infobip(client, config) => {
                 Box::pin(async move {
                     let mut resp = client
@@ -167,6 +179,12 @@ impl SMSOtp for CoreSMSOtp {
         let code = code.to_string();
 
         match self {
+            Self::Mock() => {
+                Box::pin(async move {
+                    Ok(SMSOtpResult::VerifyResult(code == "000000"))
+                })
+            },
+
             Self::Twilio(client, config) => {
                 Box::pin(async {
                     let mut resp = client
@@ -184,12 +202,13 @@ impl SMSOtp for CoreSMSOtp {
                                 status.as_str().expect("fail to access status field") == "approved" &&
                                 valid.as_bool().expect("fail to access valid field"),
                             _ => false
-                        }))
+                        }));
                     }
 
                     Err(SMSOtpError::FailToVerifyCode(format!("twilio error: {}", resp.status())))
                 })
             },
+
             Self::Infobip(client, config) => {
                 Box::pin(async move {
                     let res = config.cache
