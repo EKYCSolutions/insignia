@@ -73,6 +73,10 @@ services:
       dockerfile: ../docker/insignia.Dockerfile
     environment:
       DATABASE_URL: postgres://insignia:supersecurepw@insignia_db/insignia
+    volumes:
+      - ./jwt.pem:/opt/app/jwt.pem:ro,z
+      - ./jwt.pub:/opt/app/jwt.pub:ro,z
+      - ./session.key:/opt/app/session.key:ro,z
     command: /opt/app/db-migration
 
   insignia_frontend: &insignia_backend
@@ -84,7 +88,7 @@ services:
     environment:
       INSIGNIA_DEV_MODE: false
       INSIGNIA_DB_CONN_STR: postgres://insignia:supersecurepw@insignia_db/insignia
-      INSIGNIA_SMS_OTP_PROVIDER: twilio
+      INSIGNIA_SMS_OTP_PROVIDER: mock
       INSIGNIA_TWILIO_AUTH_TOKEN: abcdef
       INSIGNIA_TWILIO_VERIFY_SID: abcdef
       INSIGNIA_TWILIO_ACCOUNT_SID: abcdef
