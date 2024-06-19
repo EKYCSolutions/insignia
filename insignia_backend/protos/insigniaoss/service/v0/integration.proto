@@ -15,7 +15,7 @@ message GetUserInfoReq {
 }
 
 message UserContext {
-  bool is_jwt_verified = 1;
+  bool is_session_valid = 1;
   optional dev.insigniaoss.type.User user = 2;
 }
 
