@@ -4049,6 +4049,7 @@ dependencies = [
  "futures",
  "futures-util",
  "google-api-proto",
+ "jsonwebtoken",
  "models",
  "nanoid",
  "once_cell",
