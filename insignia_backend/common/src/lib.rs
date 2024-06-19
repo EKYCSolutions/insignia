@@ -6,7 +6,7 @@ use sea_orm::prelude::Uuid;
 use jsonwebtoken::EncodingKey;
 use cookie::time::OffsetDateTime;
 use chrono::{DateTime, Utc, Duration, Days};
-use actix_web::{http::header::HeaderMap, HttpRequest, cookie::Cookie};
+use actix_web::{cookie::Cookie, http::header::HeaderMap, HttpRequest};
 
 use models::users;
 
@@ -68,7 +68,13 @@ pub fn build_login_session<'a>(
 
     let fgp = nanoid::nanoid!(32);
 
-    let token_context = build_token_context(user, &req.headers(), &fgp, &now, &access_expiry);
+    let token_context = build_token_context(
+        user,
+        &req.headers().clone(),
+        &fgp,
+        &now,
+        &access_expiry
+    );
 
     let (same_site, is_cookie_secure, refresh_cookie_name, fgp_cookie_name) = *SESSION_COOKIE_SETTING;
 
@@ -136,7 +142,9 @@ pub fn build_token_context(
     t_iat: &DateTime<Utc>,
     t_exp: &DateTime<Utc>
 ) -> String {
-    let user_agent = headers.get("User-Agent").map_or("abcdefgh", |v| v.to_str().unwrap());
+    let user_agent = headers
+        .get("User-Agent")
+        .expect("fail to get User-Agent header");
 
     let random_num = t_iat.timestamp() + t_exp.timestamp();
 
