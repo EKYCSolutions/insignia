@@ -24,6 +24,16 @@ pub struct UserUpdate {
     pub phone_verified_at: Option<DateTimeWithTimeZone>,
 }
 
+pub struct AdminCreateUserInput {
+    pub name: String,
+    pub phone: Option<String>,
+    pub email: Option<String>,
+    pub password: Option<String>,
+    pub extras_meta: Option<serde_json::Value>,
+    pub email_verified_at: Option<DateTimeWithTimeZone>,
+    pub phone_verified_at: Option<DateTimeWithTimeZone>,
+}
+
 impl Query {
     pub async fn get_existence(db: &DatabaseConnection, identifier: &str) -> Result<Option<users::Model>, DbErr> {
         User::find()
@@ -111,6 +121,40 @@ impl Query {
 }
 
 impl Mutation {
+    pub async fn admin_create_user(
+        db: &DatabaseConnection,
+        user_create_input: AdminCreateUserInput,
+    ) -> Result<users::Model, DbErr> {
+        let mut user_active_model = users::ActiveModel {
+            id: sea_orm::ActiveValue::Set(Uuid::new_v4()),
+            name: sea_orm::ActiveValue::Set(user_create_input.name),
+            phone: sea_orm::ActiveValue::Set(user_create_input.phone),
+            email: sea_orm::ActiveValue::Set(user_create_input.email),
+            session_data: sea_orm::ActiveValue::Set(nanoid::nanoid!(64)),
+            extras_meta: sea_orm::ActiveValue::Set(user_create_input.extras_meta),
+            ..Default::default()
+        };
+
+        match &user_active_model.password {
+            sea_orm::ActiveValue::Set(Some(password)) => {
+                let salt = argon2::password_hash::SaltString::generate(&mut argon2::password_hash::rand_core::OsRng);
+
+                user_active_model.password = sea_orm::ActiveValue::Set(
+                    Some(argon2::Argon2::default()
+                        .hash_password(password.as_bytes(), &salt)
+                        .expect("fail to hash password").to_string())
+                );
+            },
+
+            _ => (),
+        };
+
+        let user = user_active_model.insert(db)
+            .await?;
+
+        Ok(user)
+    }
+
     pub async fn create_user(db: &DatabaseConnection, name: &str, phone: Option<String>, email: Option<String>, password: Option<String>, extras_meta: Option<serde_json::Value>) -> Result<Uuid, DbErr> {
         let mut user = users::ActiveModel {
             id: sea_orm::ActiveValue::Set(Uuid::new_v4()),

@@ -37,9 +37,15 @@ struct UserCreateReqDto {
     extras_meta: Option<serde_json::Value>,
 }
 
-#[derive(serde::Serialize)]
-struct UserCreateRespDto {
-    id: Uuid,
+#[derive(serde::Deserialize)]
+struct AdminCreateUserReqDto {
+    name: String,
+    phone: Option<String>,
+    email: Option<String>,
+    password: Option<String>,
+    extras_meta: Option<serde_json::Value>,
+    phone_verified_at: Option<DateTime<FixedOffset>>,
+    email_verified_at: Option<DateTime<FixedOffset>>,
 }
 
 #[derive(serde::Deserialize)]
@@ -471,10 +477,36 @@ async fn list_users(
     Ok(HttpResponse::Ok().json(users))
 }
 
+async fn admin_create_user(
+    body: web::Json<AdminCreateUserReqDto>,
+    db_conn: web::Data<sea_orm::DatabaseConnection>
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
+    let user = services::user::Mutation::admin_create_user(
+        &db_conn,
+        services::user::AdminCreateUserInput {
+            name: body.0.name,
+            phone: body.0.phone,
+            email: body.0.email,
+            password: body.0.password,
+            extras_meta: body.0.extras_meta,
+            email_verified_at: body.0.email_verified_at,
+            phone_verified_at: body.0.phone_verified_at,
+        }
+    )
+        .await?;
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "id": user.id,
+        "name": user.name,
+        "extras_meta": user.extras_meta,
+    })))
+}
+
 pub fn admin_routes(cfg: &mut web::ServiceConfig) {
     tracing::info!("registering users admin routes");
 
     cfg.route("", web::get().to(list_users));
+    cfg.route("", web::post().to(admin_create_user));
     cfg.route("/{id}", web::delete().to(remove_user));
 
     tracing::info!("users admin routes registered");
