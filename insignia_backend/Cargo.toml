@@ -44,6 +44,7 @@ pbjson-types = "0.6.0"
 jsonwebtoken = "8.3.0"
 futures-util = "0.3.28"
 openidconnect = "3.4.0"
+tracing-opentelemetry = "0.24.0"
 awc = { version = "3.2.0", features = ["rustls"] }
 serde = { version = "1.0.188", features = ["derive"] }
 cookie = { version = "0.17.0", features = ["secure"] }
@@ -86,10 +87,16 @@ webauthn-rs = { workspace = true }
 futures-util = { workspace = true }
 jsonwebtoken = { workspace = true }
 actix-session = { workspace = true }
+tracing-opentelemetry = { workspace = true }
 
 routes = { path = "./routes" }
 common = { path = "./common" }
+
 services = { path = "./services" }
+tracing-actix-web = "0.7.11"
+opentelemetry = { version = "0.23.0", features = ["metrics"] }
+opentelemetry-otlp = { version = "0.16.0", features = ["trace", "metrics"] }
+opentelemetry_sdk = { version = "0.23.0", features = ["metrics", "tokio", "rt-tokio"] }
 
 [workspace]
 members = [
