@@ -53,7 +53,7 @@ impl Query {
 }
 
 impl Mutation {
-    pub async fn save_webauthn_credential(db: &DatabaseConnection, user_id: Uuid, passkey: Passkey, name: String) -> Result<users_webauthn_credentials::Model, DbErr> {
+    pub async fn save_webauthn_credential(db: &DatabaseConnection, user_id: Uuid, passkey: &Passkey, name: String) -> Result<users_webauthn_credentials::Model, DbErr> {
         users_webauthn_credentials::ActiveModel {
             user_id: sea_orm::ActiveValue::Set(user_id),
             name: sea_orm::ActiveValue::Set(name),
