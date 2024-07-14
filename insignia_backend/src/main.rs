@@ -2,11 +2,12 @@
 use actix::Actor;
 use clap::Parser;
 use once_cell::sync::Lazy;
+use opentelemetry_otlp::WithExportConfig;
 use jsonwebtoken::{EncodingKey, DecodingKey};
 use tracing_subscriber::{filter, prelude::*};
 use webauthn_rs::{WebauthnBuilder, prelude::Url};
+use actix_web::{HttpServer, App, web, cookie::Key, http};
 use actix_session::{SessionMiddleware, storage::RedisActorSessionStore};
-use actix_web::{HttpServer, App, web, cookie::Key, middleware::Logger, http};
 
 use common::SESSION_COOKIE_SETTING;
 use services::dragonfly::DragonflyService;
@@ -20,24 +21,44 @@ static JWT_SECRET: Lazy<(EncodingKey, DecodingKey)> = Lazy::new(|| {
     )
 });
 
-fn setup_logger(mode: &str, log_level: filter::LevelFilter) {
+fn setup_logger(log_level: filter::LevelFilter) {
     let stdout_log = tracing_subscriber::fmt::Layer::new()
         .pretty();
 
-    let insignia_log_file_appender = tracing_appender::rolling::minutely(
-        "./logs", format!("insignia-{}", mode));
+    let otlp_exporter = opentelemetry_otlp::new_exporter()
+        .tonic()
+        .with_endpoint(
+            std::env::var("OTEL_ENDPOINT")
+                .or::<String>(Ok("http://localhost:4317".to_string()))
+                .unwrap()
+        );
 
-    let (insigia_non_blocking_file_appender, _guard) = tracing_appender::non_blocking(insignia_log_file_appender);
+    let otel_trace_config = opentelemetry_sdk::trace::config()
+        .with_resource(opentelemetry_sdk::Resource::new(vec![
+            opentelemetry::KeyValue::new(
+                "service.name",
+                std::env::var("OTEL_SERVICE_NAME")
+                    .or::<String>(Ok("insignia".to_string()))
+                    .unwrap()
+            )
+        ]));
 
-    let insignia_file_logger = tracing_subscriber::fmt::layer::<tracing_subscriber::Registry>()
-        .with_writer(insigia_non_blocking_file_appender);
+    let otel_tracer = opentelemetry_otlp::new_pipeline()
+        .tracing()
+        .with_exporter(otlp_exporter)
+        .with_trace_config(otel_trace_config)
+        .install_batch(opentelemetry_sdk::runtime::Tokio)
+        .unwrap();
+
+    let tracer = tracing_opentelemetry::layer()
+        .with_tracer(otel_tracer);
 
     tracing_subscriber::registry()
+        .with(tracer)
         .with(
             stdout_log
                 .with_filter(log_level)
-                .and_then(insignia_file_logger)
-                .with_filter(filter::filter_fn(|metadata| {
+                .and_then(filter::filter_fn(|metadata| {
                     !metadata.target().starts_with("actix") &&
                     !metadata.target().starts_with("sqlx")
                 }))
@@ -50,7 +71,6 @@ async fn main() -> std::io::Result<()> {
     let args = common::Args::parse();
 
     setup_logger(
-        &args.mode,
         match args.log_level.as_str() {
             "debug" => filter::LevelFilter::DEBUG,
             _ => filter::LevelFilter::INFO,
@@ -99,7 +119,7 @@ async fn main() -> std::io::Result<()> {
             App::new()
             .app_data(web::Data::new(dragonfly_actor_addr.clone()))
             .app_data(web::Data::new(db_conn.clone()))
-            .wrap(Logger::default())
+            .wrap(tracing_actix_web::TracingLogger::default())
             .wrap(
                 actix_cors::Cors::default()
                 .allowed_origin_fn(move |origin, _rh| {
@@ -159,7 +179,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
         .app_data(web::Data::new(dragonfly_actor_addr.clone()))
         .app_data(web::Data::new(db_conn.clone()))
-        .wrap(Logger::default())
+        .wrap(tracing_actix_web::TracingLogger::default())
         .wrap(
         actix_cors::Cors::default()
             .allowed_origin_fn(move |origin, _rh| {
