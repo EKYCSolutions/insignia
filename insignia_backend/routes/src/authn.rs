@@ -64,6 +64,8 @@ async fn register_webauthn_initialize(
     let register_session = session.get::<Uuid>("register").unwrap();
 
     if !user_context.is_jwt_verified && register_session.is_none() {
+        tracing::warn!("no session found for passkey register");
+
         return Ok(HttpResponse::Unauthorized().finish());
     }
 
@@ -97,6 +99,8 @@ async fn register_webauthn_initialize(
                 })
                 .collect()
         ) else {
+            tracing::error!("fail to start passkey registration");
+
             return Ok(HttpResponse::InternalServerError().finish());
         };
 
@@ -105,6 +109,8 @@ async fn register_webauthn_initialize(
 
         return Ok(HttpResponse::Ok().json(challenge));
     }
+
+    tracing::warn!("no user found for passkey registration");
 
     Ok(HttpResponse::Unauthorized().finish())
 }
@@ -122,7 +128,7 @@ async fn register_webauthn_finalize(
 
         let res = webauthn.finish_passkey_registration(&body, &registration);
 
-        if let Ok(passkey) = res {
+        if let Ok(passkey) = &res {
             let wc =
                 services::user_webauthn_credential::Mutation::save_webauthn_credential(
                     &db_conn,
@@ -144,8 +150,22 @@ async fn register_webauthn_finalize(
                     .cookie(refresh_token)
                     .json(models::login::LoginRespDto{ access_token: token });
             }
+
+            if let Err(error) = wc {
+                tracing::error!("fail to save passkey - {:?}", error);
+
+                return HttpResponse::UnprocessableEntity().finish();
+            }
+        }
+
+        if let Err(error) = res {
+            tracing::warn!("fail to finalize passkey register - {:?}", error);
+
+            return HttpResponse::UnprocessableEntity().finish();
         }
     }
+
+    tracing::warn!("no passkey register session found");
 
     HttpResponse::UnprocessableEntity().finish()
 }
