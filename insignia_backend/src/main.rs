@@ -14,9 +14,9 @@ use services::dragonfly::DragonflyService;
 
 static JWT_SECRET: Lazy<(EncodingKey, DecodingKey)> = Lazy::new(|| {
     (
-        EncodingKey::from_ed_pem(std::fs::read("./jwt.pem").expect("fail to read jwt.pem").as_slice())
+        EncodingKey::from_ed_pem(std::fs::read("./etc/jwt.pem").expect("fail to read jwt.pem").as_slice())
         .expect("fail to read jwt secret key for encoding key"),
-        DecodingKey::from_ed_pem(std::fs::read("./jwt.pub").expect("fail to read jwt.pub").as_slice())
+        DecodingKey::from_ed_pem(std::fs::read("./etc/jwt.pub").expect("fail to read jwt.pub").as_slice())
         .expect("fail to read jwt secret key for decoding key")
     )
 });
@@ -203,7 +203,7 @@ async fn main() -> std::io::Result<()> {
         .wrap(
             SessionMiddleware::builder(
                 RedisActorSessionStore::new(dragonflydb_conn_str),
-                Key::from(std::fs::read("./session.key").expect("fail to read session-key").as_slice())
+                Key::from(std::fs::read("./etc/session.key").expect("fail to read session-key").as_slice())
             )
             .cookie_same_site(same_site)
             .cookie_secure(is_cookie_secure)
