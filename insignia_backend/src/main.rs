@@ -14,7 +14,7 @@ use services::dragonfly::DragonflyService;
 
 static JWT_SECRET: Lazy<(EncodingKey, DecodingKey)> = Lazy::new(|| {
     (
-        EncodingKey::from_ed_pem(std::fs::read("./etc/jwt.pem").expect("fail to read jwt.pem").as_slice())
+        EncodingKey::from_ed_pem(std::fs::read("./etc/jwt.priv").expect("fail to read jwt.priv").as_slice())
         .expect("fail to read jwt secret key for encoding key"),
         DecodingKey::from_ed_pem(std::fs::read("./etc/jwt.pub").expect("fail to read jwt.pub").as_slice())
         .expect("fail to read jwt secret key for decoding key")

@@ -74,8 +74,8 @@ services:
     environment:
       DATABASE_URL: postgres://insignia:supersecurepw@insignia_db/insignia
     volumes:
-      - ./jwt.pem:/opt/app/jwt.pem:ro,z
       - ./jwt.pub:/opt/app/jwt.pub:ro,z
+      - ./jwt.priv:/opt/app/jwt.priv:ro,z
       - ./session.key:/opt/app/session.key:ro,z
     command: /opt/app/db-migration
 

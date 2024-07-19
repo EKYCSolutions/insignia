@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         db_conn: db_conn.clone(),
         jwt_decoding_key: jsonwebtoken::DecodingKey::from_ed_pem(std::fs::read("./etc/jwt.pub").expect("fail to read jwt.pub").as_slice())
             .expect("fail to read jwt secret key for decoding key"),
-        jwt_encoding_key: jsonwebtoken::EncodingKey::from_ed_pem(std::fs::read("./etc/jwt.pem").expect("fail to read jwt.pem").as_slice())
+        jwt_encoding_key: jsonwebtoken::EncodingKey::from_ed_pem(std::fs::read("./etc/jwt.priv").expect("fail to read jwt.priv").as_slice())
             .expect("fail to read jwt secret key for encoding key"),
     };
 
