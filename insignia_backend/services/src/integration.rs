@@ -81,7 +81,7 @@ impl service::v0::integration_service_server::IntegrationService for Integration
         );
 
         let get_fgp_cookie = req_args.req_headers
-            .get("Cookie")
+            .get("cookie")
             .and_then(|cookies| {
                 cookies
                     .split(';')
