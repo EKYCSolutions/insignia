@@ -182,7 +182,7 @@ impl SMSOtp for CoreSMSOtp {
                         .send_json(&serde_json::json!({
                             "to": to,
                             "sender": &config.sender_name,
-                            "content": format!("Your LuckyBurger OTP code is - {}", pin)
+                            "content": format!("Your OTP code is - {}", pin)
                         }))
                         .await?;
 
