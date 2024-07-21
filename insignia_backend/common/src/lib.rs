@@ -234,6 +234,15 @@ pub struct Args {
     #[arg(long, required = false, env = "INSIGNIA_INFOBIP_2FA_MESSAGE_TEMPLATE_ID", help = "infobip 2fa message template id")]
     pub infobip_twofa_message_template_id: Option<String>,
 
+    #[arg(long, required = false, env = "INSIGNIA_PLASGATE_SENDER_NAME", help = "plasgate sender name to show on otp auth")]
+    pub plasgate_sender_name: Option<String>,
+
+    #[arg(long, required = false, env = "INSIGNIA_PLASGATE_SECRET", help = "plasgate secret")]
+    pub plasgate_secret: Option<String>,
+
+    #[arg(long, required = false, env = "INSIGNIA_PLASGATE_PRIVATE_KEY", help = "plasgate private key")]
+    pub plasgate_private_key: Option<String>,
+
     #[arg(long, required = false, env = "INSIGNIA_SMS_OTP_PROVIDER", help = "sms one time passcode provider")]
     pub sms_otp_provider: String,
 }

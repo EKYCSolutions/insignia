@@ -100,6 +100,12 @@ async fn main() -> std::io::Result<()> {
             &args.infobip_twofa_message_template_id.expect("infobip twofa message template id not set"),
             dragonfly_actor_addr.clone()
         ),
+        "plasgate" => services::sms_otp::CoreSMSOtp::new_plasgate(
+            &args.plasgate_sender_name.expect("plasgate sender name not set"),
+            &args.plasgate_secret.expect("plasgate secret not set"),
+            &args.plasgate_private_key.expect("plasgate private key not set"),
+            dragonfly_actor_addr.clone()
+        ),
         "mock" => services::sms_otp::CoreSMSOtp::new_mock(),
         _ => panic!("unsupported sms otp provider"),
     };
@@ -203,7 +209,7 @@ async fn main() -> std::io::Result<()> {
         .wrap(
             SessionMiddleware::builder(
                 RedisActorSessionStore::new(dragonflydb_conn_str),
-                Key::from(std::fs::read("./etc/session.key").expect("fail to read session-key").as_slice())
+                Key::from(std::fs::read("./etc/session.key").expect("fail to read session.key").as_slice())
             )
             .cookie_same_site(same_site)
             .cookie_secure(is_cookie_secure)
