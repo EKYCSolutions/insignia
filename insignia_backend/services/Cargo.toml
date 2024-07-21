@@ -16,6 +16,7 @@ chrono = { workspace = true }
 blake3 = { workspace = true }
 argon2 = { workspace = true }
 nanoid = { workspace = true }
+tracing = { workspace = true }
 sea-orm = { workspace = true }
 futures = { workspace = true }
 protobuf = { workspace = true }

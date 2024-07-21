@@ -1,5 +1,6 @@
 use std::pin::Pin;
 
+use nanoid::nanoid;
 use awc::http::StatusCode;
 use actix::{Actor, Context, Message, Handler, ResponseFuture, Addr, MailboxError};
 
@@ -11,6 +12,15 @@ pub enum SMSOtpError {
     FailToVerifyCode(String),
     InvalidRequest(String),
     UnknownError(String),
+}
+
+impl From<awc::error::PayloadError> for SMSOtpError {
+    fn from(value: awc::error::PayloadError) -> Self {
+        match value {
+            err =>
+                Self::UnknownError(err.to_string())
+        }
+    }
 }
 
 impl From<awc::error::SendRequestError> for SMSOtpError {
@@ -74,15 +84,40 @@ pub struct InfobipServiceConfig {
 }
 
 #[derive(Clone)]
+pub struct PlasgateServiceConfig {
+    base_url: String,
+    private_key: String,
+    sender_name: String,
+    cache: Addr<DragonflyService>,
+}
+
+#[derive(Clone)]
 pub enum CoreSMSOtp {
     Twilio(awc::Client, TwilioServiceConfig),
     Infobip(awc::Client, InfobipServiceConfig),
+    Plasgate(awc::Client, PlasgateServiceConfig),
     Mock(),
 }
 
 impl CoreSMSOtp {
     pub fn new_mock() -> Self {
         Self::Mock()
+    }
+
+    pub fn new_plasgate(plasgate_sender_name: &str, plasgate_secret: &str, plasgate_private_key: &str, cache_actor_addr: Addr<DragonflyService>) -> Self {
+        let client = awc::ClientBuilder::new()
+            .add_default_header(("x-secret", plasgate_secret))
+            .finish();
+
+        Self::Plasgate(
+            client,
+            PlasgateServiceConfig {
+                base_url: "https://cloudapi.plasgate.com".to_string(),
+                private_key: plasgate_private_key.to_string(),
+                sender_name: plasgate_sender_name.to_string(),
+                cache: cache_actor_addr,
+            }
+        )
     }
 
     pub fn new_twilio(twilio_account_sid: &str, twilio_auth_token: &str, twilio_verify_sid: &str) -> Self {
@@ -130,9 +165,44 @@ impl SMSOtp for CoreSMSOtp {
                 })
             },
 
+            Self::Plasgate(client, config) => {
+                Box::pin(async move {
+                    let pin = nanoid!(6, &['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']);
+
+                    config.cache
+                        .send(crate::dragonfly::DragonflyCommand::Set(
+                            to.clone(),
+                            pin.clone(),
+                            redis::SetOptions::default().with_expiration(redis::SetExpiry::EX(960))
+                        ))
+                        .await??;
+
+                    let mut resp = client
+                        .post(format!("{}/rest/send?private_key={}", &config.base_url, &config.private_key))
+                        .send_json(&serde_json::json!({
+                            "to": to,
+                            "sender": &config.sender_name,
+                            "content": format!("Your LuckyBurger OTP code is - {}", pin)
+                        }))
+                        .await?;
+
+                    if resp.status() == StatusCode::OK {
+                        return Ok(SMSOtpResult::SendResult(true));
+                    }
+
+                    tracing::error!(
+                        "fail to send otp code: {:?}",
+                        resp.body()
+                            .await?
+                    );
+
+                    Err(SMSOtpError::FailToSendCode(format!("plasgate error: {}", resp.status())))
+                })
+            },
+
             Self::Twilio(client, config) => {
                 Box::pin(async {
-                    let resp = client
+                    let mut resp = client
                         .post(format!("{}/{}/Verifications", &config.base_url, &config.verify_sid))
                         .send_form(&[("To", to), ("Channel", "sms".to_string())])
                         .await?;
@@ -140,6 +210,12 @@ impl SMSOtp for CoreSMSOtp {
                     if resp.status() == StatusCode::OK {
                         return Ok(SMSOtpResult::SendResult(true));
                     }
+
+                    tracing::error!(
+                        "fail to send otp code: {:?}",
+                        resp.body()
+                            .await?
+                    );
 
                     Err(SMSOtpError::FailToSendCode(format!("twilio error: {}", resp.status())))
                 })
@@ -168,6 +244,12 @@ impl SMSOtp for CoreSMSOtp {
                         return Ok(SMSOtpResult::SendResult(true));
                     }
 
+                    tracing::error!(
+                        "fail to send otp code: {:?}",
+                        resp.body()
+                            .await?
+                    );
+
                     Err(SMSOtpError::FailToSendCode(format!("infobip error: {}", resp.status())))
                 })
             },
@@ -185,11 +267,27 @@ impl SMSOtp for CoreSMSOtp {
                 })
             },
 
+            Self::Plasgate(_client, config) => {
+                Box::pin(async move {
+                    let res = config.cache
+                        .send(crate::dragonfly::DragonflyCommand::Get(to.clone()))
+                        .await??;
+
+                    if let Some(pin) = res {
+                        return Ok(SMSOtpResult::VerifyResult(pin == code))
+                    }
+
+                    tracing::warn!("otp does not exists for {}", to);
+
+                    Err(SMSOtpError::FailToVerifyCode("invalid otp code".to_string()))
+                })
+            },
+
             Self::Twilio(client, config) => {
-                Box::pin(async {
+                Box::pin(async move {
                     let mut resp = client
                         .post(format!("{}/{}/VerificationCheck", &config.base_url, &config.verify_sid))
-                        .send_form(&[("To", to), ("Code", code)])
+                        .send_form(&[("To", to.clone()), ("Code", code)])
                         .await?;
 
                     if resp.status() == StatusCode::OK {
@@ -204,6 +302,13 @@ impl SMSOtp for CoreSMSOtp {
                             _ => false
                         }));
                     }
+
+                    tracing::warn!(
+                        "fail to verify otp for {} - {:?}",
+                        to,
+                        resp.body()
+                            .await?
+                    );
 
                     Err(SMSOtpError::FailToVerifyCode(format!("twilio error: {}", resp.status())))
                 })
