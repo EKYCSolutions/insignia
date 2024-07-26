@@ -13,6 +13,10 @@ RUN apk --no-cache --virtual .build-deps add git curl-dev postgresql-dev clang15
     make install &&\
     cd .. &&\
     apk del .build-deps &&\
-    echo 'create extension if not exists http' > /docker-entrypoint-initdb.d/create-http-extension.sql &&\
-    echo 'create extension if not exists pg_cron' > /docker-entrypoint-initdb.d/create-pg-cron-extension.sql &&\
+    echo 'create extension if not exists http' > /docker-entrypoint-initdb.d/001_create-http-extension.sql &&\
     sed -i "s#shared_preload_libraries = '\(.*\)'#shared_preload_libraries = '\1,pg_cron'#g" /usr/local/share/postgresql/postgresql.conf.sample
+
+RUN cat <<EOF > /docker-entrypoint-initdb.d/000_set-cron-database.sh
+#!/usr/bin/env bash
+echo "cron.database_name = '\$POSTGRES_DB'" >> /var/lib/postgresql/data/postgresql.conf
+EOF
