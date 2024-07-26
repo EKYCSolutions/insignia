@@ -7,5 +7,12 @@ RUN apk --no-cache --virtual .build-deps add git curl-dev postgresql-dev clang15
     make &&\
     make install &&\
     cd .. &&\
+    git clone --depth 1 --branch v1.6.3 https://github.com/citusdata/pg_cron &&\
+    cd pg_cron &&\
+    make &&\
+    make install &&\
+    cd .. &&\
     apk del .build-deps &&\
-    echo 'create extension if not exists http' > /docker-entrypoint-initdb.d/create-http-extension.sql
+    echo 'create extension if not exists http' > /docker-entrypoint-initdb.d/create-http-extension.sql &&\
+    echo 'create extension if not exists pg_cron' > /docker-entrypoint-initdb.d/create-pg-cron-extension.sql &&\
+    sed -i "s#shared_preload_libraries = '\(.*\)'#shared_preload_libraries = '\1,pg_cron'#g" /usr/local/share/postgresql/postgresql.conf.sample
