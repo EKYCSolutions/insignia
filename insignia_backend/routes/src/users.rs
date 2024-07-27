@@ -4,7 +4,7 @@ use std::ops::Add;
 use actix::Addr;
 use once_cell::sync::Lazy;
 use actix_session::Session;
-use sea_orm::prelude::Uuid;
+use sea_orm::{prelude::Uuid, ConnectionTrait};
 use chrono::{DateTime, Duration, FixedOffset};
 use argon2::{PasswordHasher, PasswordVerifier};
 use actix_web::{web, HttpResponse, HttpRequest};
@@ -502,12 +502,29 @@ async fn admin_create_user(
     })))
 }
 
+async fn remove_unsuccessful_register_users(
+    db_conn: web::Data<sea_orm::DatabaseConnection>
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
+    db_conn.execute_unprepared(
+        "delete from users
+        where password is null
+        and (created_at + interval '8 minutes') < now()
+        and phone_verified_at is null
+        and email_verified_at is null
+        and id not in (select user_id from users_webauthn_credentials)"
+    )
+        .await?;
+
+    Ok(HttpResponse::NoContent().finish())
+}
+
 pub fn admin_routes(cfg: &mut web::ServiceConfig) {
     tracing::info!("registering users admin routes");
 
     cfg.route("", web::get().to(list_users));
     cfg.route("", web::post().to(admin_create_user));
     cfg.route("/{id}", web::delete().to(remove_user));
+    cfg.route("remove-unsuccessful-register-users", web::post().to(remove_unsuccessful_register_users));
 
     tracing::info!("users admin routes registered");
 }
