@@ -2,6 +2,8 @@
 use clap::Parser;
 use tonic::transport::Server;
 
+use services::integration::insigniaoss as insignia_grpc;
+
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Args {
@@ -25,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
 
     health_reporter
-        .set_serving::<services::integration::IntegrationServiceServer<services::integration::IntegrationService>>()
+        .set_serving::<insignia_grpc::service::v0::integration_service_server::IntegrationServiceServer<services::integration::IntegrationService>>()
         .await;
 
     let integration_service = services::integration::IntegrationService{
@@ -42,7 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Server::builder()
         .add_service(health_service)
-        .add_service(services::integration::IntegrationServiceServer::new(integration_service))
+        .add_service(insignia_grpc::service::v0::integration_service_server::IntegrationServiceServer::new(integration_service))
         .add_service(reflection_server)
         .serve(address)
         .await?;
