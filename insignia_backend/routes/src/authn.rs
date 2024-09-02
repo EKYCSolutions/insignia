@@ -347,6 +347,17 @@ async fn verify_phone_otp(
     HttpResponse::Unauthorized().finish()
 }
 
+static PHONE_OTP_IGNORED_USERS: Lazy<Vec<String>> = Lazy::new(|| {
+    std::env::var("INSIGNIA_PHONE_OTP_IGNORE_USERS")
+        .map(|val| val
+            .split(",")
+            .map(|uid| uid.to_string())
+            .collect::<Vec<String>>()
+        )
+        .or::<Vec<String>>(Ok(vec![]))
+        .unwrap()
+});
+
 async fn login_phone_otp_attempt(
     db_conn: web::Data<sea_orm::DatabaseConnection>,
     body: web::Form<PhoneOtpLoginReqDto>,
@@ -359,9 +370,15 @@ async fn login_phone_otp_attempt(
     let user = user[0].0.to_owned();
 
     if user.phone.is_some() && user.phone_verified_at.is_some() {
+        let user_phone = user.phone.unwrap();
+
+        if PHONE_OTP_IGNORED_USERS.contains(&user_phone) {
+            return HttpResponse::NoContent().finish();
+        }
+
         let _ =
             sms_otp_service
-                .send(services::sms_otp::CoreSMSOtpCommand::Send(user.phone.unwrap()))
+                .send(services::sms_otp::CoreSMSOtpCommand::Send(user_phone))
                 .await
                 .expect("fail to send sms otp");
     }
@@ -377,10 +394,14 @@ async fn login_phone_otp(
     jwt_secret: web::Data<&Lazy<(EncodingKey, DecodingKey)>>
 ) -> HttpResponse {
     let result =
-        sms_otp_service
-            .send(services::sms_otp::CoreSMSOtpCommand::Verify(body.phone.clone(), body.code.to_owned()))
-            .await
-            .expect("fail to verify sms otp");
+        if PHONE_OTP_IGNORED_USERS.contains(&body.phone) {
+            Ok(services::sms_otp::SMSOtpResult::VerifyResult(true))
+        } else {
+            sms_otp_service
+                .send(services::sms_otp::CoreSMSOtpCommand::Verify(body.phone.clone(), body.code.to_owned()))
+                .await
+                .expect("fail to verify sms otp")
+        };
 
     if let Ok(result) = result {
         return match result {
