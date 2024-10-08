@@ -50,7 +50,11 @@ async fn apple_app_site_association(
                     .map(|app_id| {
                         serde_json::json!({
                             "appId": app_id,
-                            "paths": ["*"]
+                            "components": [{
+                                "/": "*",
+                                "?": "*",
+                                "#": "*"
+                            }]
                         })
                     })
                     .collect::<Vec<serde_json::Value>>()
