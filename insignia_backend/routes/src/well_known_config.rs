@@ -49,7 +49,7 @@ async fn apple_app_site_association(
                     .iter()
                     .map(|app_id| {
                         serde_json::json!({
-                            "appId": app_id,
+                            "appID": app_id,
                             "components": [{
                                 "/": "*",
                                 "?": "*",
