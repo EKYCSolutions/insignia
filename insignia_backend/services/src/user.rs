@@ -190,14 +190,6 @@ impl Mutation {
             user.session_data = sea_orm::ActiveValue::Set(session_data);
         }
 
-        if updates.email_verified_at.is_some() {
-            user.email_verified_at = sea_orm::ActiveValue::Set(updates.email_verified_at);
-        }
-
-        if updates.phone_verified_at.is_some() {
-            user.phone_verified_at = sea_orm::ActiveValue::Set(updates.phone_verified_at);
-        }
-
         if let Some(email) = updates.email {
             user.email = sea_orm::ActiveValue::Set(email);
             user.email_verified_at = sea_orm::ActiveValue::Set(None);
@@ -206,6 +198,14 @@ impl Mutation {
         if let Some(phone) = updates.phone {
             user.phone = sea_orm::ActiveValue::Set(phone);
             user.phone_verified_at = sea_orm::ActiveValue::Set(None);
+        }
+
+        if updates.email_verified_at.is_some() {
+            user.email_verified_at = sea_orm::ActiveValue::Set(updates.email_verified_at);
+        }
+
+        if updates.phone_verified_at.is_some() {
+            user.phone_verified_at = sea_orm::ActiveValue::Set(updates.phone_verified_at);
         }
 
         if let Some(password) = updates.password {
