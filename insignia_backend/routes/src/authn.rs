@@ -1,4 +1,5 @@
 
+use actix::Addr;
 use chrono::Utc;
 use once_cell::sync::Lazy;
 use actix_session::Session;
@@ -11,7 +12,7 @@ use webauthn_rs::{Webauthn, prelude::{RegisterPublicKeyCredential, PasskeyRegist
 use common::build_login_session;
 use models::http_error::AppHttpErrorResponseDto;
 use super::extractors::user_context::UserContext;
-use services::{sms_otp::CoreSMSOtp, user_webauthn_credential::UserWebauthnCredData};
+use services::{dragonfly::DragonflyService, sms_otp::CoreSMSOtp, user::UserUpdate, user_webauthn_credential::UserWebauthnCredData};
 
 #[derive(serde::Deserialize)]
 struct UserWebauthnRegiserReqDto {
@@ -52,6 +53,16 @@ enum AuthnMethod {
 #[derive(serde::Deserialize)]
 struct AuthnMethodRemoveReqDto {
     auth_method_to_remove: AuthnMethod,
+}
+
+#[derive(serde::Deserialize)]
+struct SetPhoneOtpAttemptReqDto {
+    phone: String,
+}
+
+#[derive(serde::Deserialize)]
+struct SetPhoneOtpReqDto {
+    code: String,
 }
 
 async fn register_webauthn_initialize(
@@ -572,6 +583,101 @@ async fn remove_webauthn_credential(
     Ok(HttpResponse::NoContent().finish())
 }
 
+async fn set_phone_otp_attempt(
+    user_context: UserContext,
+    body: web::Form<SetPhoneOtpAttemptReqDto>,
+    db_conn: web::Data<sea_orm::DatabaseConnection>,
+    sms_otp_service: web::Data<actix::Addr<CoreSMSOtp>>,
+    dragonfly_service: web::Data<Addr<DragonflyService>>
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
+    if user_context.user.is_none() {
+        return Ok(HttpResponse::Unauthorized().finish());
+    }
+
+    let user = user_context.user.unwrap();
+
+    actix::spawn(async move {
+        if let Some(current_phone) = user.phone {
+            if current_phone == body.phone {
+                return;
+            }
+        }
+
+        if let Ok(u) = services::user::Query::get_existence(&db_conn, &body.phone).await {
+            if u.is_none() {
+                let result = dragonfly_service.send(services::dragonfly::DragonflyCommand::Set(
+                    format!("user@{}@set-phone", user.id),
+                    body.phone.clone(),
+                    redis::SetOptions::default().with_expiration(redis::SetExpiry::EX(960))
+                ))
+                    .await;
+
+                if let Ok(Ok(_)) = result {
+                    let _ =
+                        sms_otp_service
+                            .send(services::sms_otp::CoreSMSOtpCommand::Send(body.phone.to_owned()))
+                            .await
+                            .expect("fail to send sms otp for set phone attempt");
+                }
+
+                
+            }
+        }
+    });
+
+    Ok(HttpResponse::NoContent().finish())
+}
+
+async fn set_phone_otp(
+    user_context: UserContext,
+    db_conn: web::Data<sea_orm::DatabaseConnection>,
+    sms_otp_service: web::Data<actix::Addr<CoreSMSOtp>>,
+    dragonfly_service: web::Data<Addr<DragonflyService>>,
+    body: web::Form<SetPhoneOtpReqDto>
+) -> Result<HttpResponse, AppHttpErrorResponseDto> {
+    if user_context.user.is_none() {
+        return Ok(HttpResponse::Unauthorized().finish());
+    }
+
+    let user = user_context.user.unwrap();
+
+    let phone_change_to =
+        dragonfly_service.send(services::dragonfly::DragonflyCommand::Get(format!("user@{}@set-phone", user.id)))
+            .await??;
+
+    if let Some(phone_change_to) = phone_change_to {
+        let is_verified = sms_otp_service
+            .send(services::sms_otp::CoreSMSOtpCommand::Verify(phone_change_to.clone(), body.code.to_owned()))
+            .await?
+            .expect("fail to verify sms otp for set phone");
+
+        match is_verified {
+            services::sms_otp::SMSOtpResult::VerifyResult(true) => {
+                services::user::Mutation::update_user(
+                    &db_conn,
+                    user,
+                    UserUpdate{
+                        name: None,
+                        email: None,
+                        password: None,
+                        session_data: None,
+                        email_verified_at: None,
+                        phone: Some(Some(phone_change_to)),
+                        phone_verified_at: Some(Utc::now().fixed_offset()),
+                    }
+                )
+                    .await?;
+
+                return Ok(HttpResponse::NoContent().finish());
+            },
+
+            _ => {},
+        }
+    }
+
+    Ok(HttpResponse::Forbidden().finish())
+}
+
 pub fn routes(cfg: &mut web::ServiceConfig) {
     tracing::info!("registering authn routes");
 
@@ -579,6 +685,8 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
 
     cfg.route("phone-otp/login", web::patch().to(login_phone_otp));
     cfg.route("phone-otp/login", web::post().to(login_phone_otp_attempt));
+    cfg.route("phone-otp/set", web::post().to(set_phone_otp_attempt));
+    cfg.route("phone-otp/set", web::patch().to(set_phone_otp));
 
     cfg.route("verify-phone", web::patch().to(verify_phone_otp));
     cfg.route("verify-phone", web::post().to(verify_phone_otp_attempt));
