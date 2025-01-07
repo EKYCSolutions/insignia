@@ -7,6 +7,7 @@ use actix::{Actor, Context, Message, Handler, ResponseFuture, Addr, MailboxError
 use models::http_error::AppError;
 use crate::dragonfly::DragonflyService;
 
+#[derive(Debug)]
 pub enum SMSOtpError {
     FailToSendCode(String),
     FailToVerifyCode(String),
@@ -58,6 +59,7 @@ impl From<AppError> for SMSOtpError {
     }
 }
 
+#[derive(Debug)]
 pub enum SMSOtpResult {
     SendResult(bool),
     VerifyResult(bool),
