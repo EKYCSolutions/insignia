@@ -63,6 +63,8 @@ impl MigrationTrait for Migration {
                         json_build_object(
                             'user_id', new.id,
                             'username', new.name,
+                            'phone', new.phone,
+                            'email', new.email,
                             'created_at', new.created_at,
                             'extras', new.extras_meta
                         )
