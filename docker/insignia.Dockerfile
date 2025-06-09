@@ -1,8 +1,9 @@
-FROM rust:1.74-alpine as builder
+FROM rust:1.74-alpine AS builder
 
 WORKDIR /opt/app
 
 RUN apk add --no-cache --virtual .build-deps\
+  gcc\
   clang\
   protoc\
   musl-dev\
@@ -16,9 +17,9 @@ RUN apk add --no-cache --virtual .build-deps\
 COPY . .
 
 RUN cargo build -r --target=x86_64-unknown-linux-musl &&\
-    cargo build -r --target=x86_64-unknown-linux-musl --manifest-path migration/Cargo.toml
+  cargo build -r --target=x86_64-unknown-linux-musl --manifest-path migration/Cargo.toml
 
-FROM alpine:3.20
+FROM alpine:3.21
 
 WORKDIR /opt/app
 
