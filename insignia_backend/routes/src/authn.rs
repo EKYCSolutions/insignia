@@ -228,10 +228,12 @@ async fn login_webauthn_finalize(
     jwt_secret: web::Data<&Lazy<(EncodingKey, DecodingKey)>>,
     body: web::Json<PublicKeyCredential>
 ) -> HttpResponse {
-    if let Some((user_id, creds, auth)) = session.get::<(Uuid, Vec<UserWebauthnCredData>, PasskeyAuthentication)>("webauthn-login").unwrap() {
+    if let Some((user_id, creds, auth)) = session.get::<(Uuid, Vec<UserWebauthnCredData>, PasskeyAuthentication)>("webauthn-login").expect("fail to get webauthn-login session") {
         session.remove("webauthn-login");
 
-        if let Ok(auth_result) = webauthn.finish_passkey_authentication(&body, &auth) {
+        let passkey_result = webauthn.finish_passkey_authentication(&body, &auth);
+
+        if let Ok(auth_result) = &passkey_result {
             let creds: Vec<(UserWebauthnCredData, Passkey)> =
                 creds
                 .iter()
@@ -245,21 +247,49 @@ async fn login_webauthn_finalize(
                 })
                 .collect();
 
-            if let Ok(true) = services::user_webauthn_credential::Mutation::update_webauthn_credentials_counter(&db_conn, creds).await {
-                let user =
-                    services::user::Query::get_user_info_by_id(&db_conn, user_id)
-                    .await
-                    .expect("fail to get user info by id");
+            if let Err(err) = services::user_webauthn_credential::Mutation::update_webauthn_credentials_counter(&db_conn, creds).await {
+                tracing::error!("failed to webauthn counter: {}", err.to_string());
 
-                let (token, refresh_token, fgp) = common::build_login_session(&user[0].0, &jwt_secret.0, &req);
-
-                return HttpResponse::Ok()
-                    .cookie(fgp)
-                    .cookie(refresh_token)
-                    .json(models::login::LoginRespDto{ access_token: token });
+                return HttpResponse::InternalServerError().finish();
             }
+
+            let user =
+                services::user::Query::get_user_info_by_id(&db_conn, user_id)
+                .await
+                .expect("fail to get user info by id");
+
+            if *IS_SINGLE_LOGIN_SESSION {
+                if let Err(err) = services::user::Mutation::update_user(&db_conn, user[0].0.clone(), services::user::UserUpdate{
+                    name: None,
+                    phone: None,
+                    email: None,
+                    password: None,
+                    session_data: Some(nanoid::nanoid!(64)),
+                    email_verified_at: None,
+                    phone_verified_at: None,
+                }).await {
+                    tracing::error!("failed to update session data for single login session: {}", err.to_string());
+
+                    return HttpResponse::InternalServerError().finish();
+                }
+            }
+
+            let (token, refresh_token, fgp) = common::build_login_session(&user[0].0, &jwt_secret.0, &req);
+
+            return HttpResponse::Ok()
+                .cookie(fgp)
+                .cookie(refresh_token)
+                .json(models::login::LoginRespDto{ access_token: token });
+        }
+        
+        if let Err(err) = passkey_result {
+            tracing::warn!("failed to finalize passkey login - {:?}", err);
+
+            return HttpResponse::UnprocessableEntity().finish();
         }
     }
+
+    tracing::warn!("no passkey login session found");
 
     HttpResponse::UnprocessableEntity().finish()
 }
@@ -369,6 +399,13 @@ static PHONE_OTP_IGNORED_USERS: Lazy<Vec<String>> = Lazy::new(|| {
         .unwrap()
 });
 
+static IS_SINGLE_LOGIN_SESSION: Lazy<bool> = Lazy::new(|| {
+    std::env::var("INSIGNIA_IS_SINGLE_LOGIN_SESSION")
+        .and_then(|is_single_login_session| Ok(is_single_login_session == "yes"))
+        .or::<String>(Ok(true))
+        .unwrap()
+});
+
 async fn login_phone_otp_attempt(
     db_conn: web::Data<sea_orm::DatabaseConnection>,
     body: web::Form<PhoneOtpLoginReqDto>,
@@ -422,6 +459,22 @@ async fn login_phone_otp(
                     .await
                     .expect("fail to get user info by id");
 
+                if *IS_SINGLE_LOGIN_SESSION {
+                    if let Err(err) = services::user::Mutation::update_user(&db_conn, user[0].0.clone(), services::user::UserUpdate{
+                        name: None,
+                        phone: None,
+                        email: None,
+                        password: None,
+                        session_data: Some(nanoid::nanoid!(64)),
+                        email_verified_at: None,
+                        phone_verified_at: None,
+                    }).await {
+                        tracing::error!("failed to update session data for single login session: {}", err.to_string());
+
+                        return HttpResponse::InternalServerError().finish();
+                    }
+                }
+
                 let (token, refresh_token, fgp) = build_login_session(&user[0].0, &jwt_secret.0, &req);
 
                 return HttpResponse::Ok()
@@ -454,6 +507,22 @@ async fn login_password(
             let hashed_password = argon2::password_hash::PasswordHash::new(&password)?;
 
             if argon2::Argon2::default().verify_password(body.password.as_bytes(), &hashed_password).is_ok() {
+                if *IS_SINGLE_LOGIN_SESSION {
+                    if let Err(err) = services::user::Mutation::update_user(&db_conn, user.clone(), services::user::UserUpdate{
+                        name: None,
+                        phone: None,
+                        email: None,
+                        password: None,
+                        session_data: Some(nanoid::nanoid!(64)),
+                        email_verified_at: None,
+                        phone_verified_at: None,
+                    }).await {
+                        tracing::error!("failed to update session data for single login session: {}", err.to_string());
+
+                        return Ok(HttpResponse::InternalServerError().finish());
+                    }
+                }
+
                 let (token, refresh_token, fgp) = build_login_session(&user, &jwt_secret.0, &req);
 
                 return Ok(HttpResponse::Ok()
