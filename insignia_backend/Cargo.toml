@@ -65,7 +65,6 @@ sea-orm = { version = "0.12.3", features = [
 tonic-health = "0.12.1"
 tonic-reflection = "0.12.1"
 tracing-appender = "0.2.2"
-tracing-subscriber = "0.3.17"
 awc = { workspace = true }
 clap = { workspace = true }
 actix = { workspace = true }
@@ -91,6 +90,7 @@ futures-util = { workspace = true }
 jsonwebtoken = { workspace = true }
 actix-session = { workspace = true }
 tracing-opentelemetry = { workspace = true }
+tracing-subscriber = { version = "0.3.17", features = ["json"] }
 
 routes = { path = "./routes" }
 common = { path = "./common" }

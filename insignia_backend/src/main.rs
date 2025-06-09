@@ -22,8 +22,8 @@ static JWT_SECRET: Lazy<(EncodingKey, DecodingKey)> = Lazy::new(|| {
 });
 
 fn setup_logger(log_level: filter::LevelFilter) {
-    let stdout_log = tracing_subscriber::fmt::Layer::new()
-        .pretty();
+    let stdout_log = tracing_subscriber::fmt::layer()
+        .json();
 
     let otlp_exporter = opentelemetry_otlp::new_exporter()
         .tonic()
@@ -123,8 +123,8 @@ async fn main() -> std::io::Result<()> {
             let cors_origins = args.cors_origins.clone();
 
             App::new()
-            .app_data(web::Data::new(dragonfly_actor_addr.clone()))
             .app_data(web::Data::new(db_conn.clone()))
+            .app_data(web::Data::new(dragonfly_actor_addr.clone()))
             .wrap(tracing_actix_web::TracingLogger::default())
             .wrap(
                 actix_cors::Cors::default()
