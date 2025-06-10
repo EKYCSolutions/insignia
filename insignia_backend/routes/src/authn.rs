@@ -253,18 +253,20 @@ async fn login_webauthn_finalize(
                 return HttpResponse::InternalServerError().finish();
             }
 
-            let user =
+            let mut user =
                 services::user::Query::get_user_info_by_id(&db_conn, user_id)
                 .await
                 .expect("fail to get user info by id");
 
             if *IS_SINGLE_LOGIN_SESSION {
+                let new_session_data = nanoid::nanoid!(64);
+
                 if let Err(err) = services::user::Mutation::update_user(&db_conn, user[0].0.clone(), services::user::UserUpdate{
                     name: None,
                     phone: None,
                     email: None,
                     password: None,
-                    session_data: Some(nanoid::nanoid!(64)),
+                    session_data: Some(new_session_data.clone()),
                     email_verified_at: None,
                     phone_verified_at: None,
                 }).await {
@@ -272,6 +274,8 @@ async fn login_webauthn_finalize(
 
                     return HttpResponse::InternalServerError().finish();
                 }
+
+                user[0].0.session_data = new_session_data;
             }
 
             let (token, refresh_token, fgp) = common::build_login_session(&user[0].0, &jwt_secret.0, &req);
@@ -454,18 +458,20 @@ async fn login_phone_otp(
     if let Ok(result) = result {
         return match result {
             services::sms_otp::SMSOtpResult::VerifyResult(true) => {
-                let user =
+                let mut user =
                     services::user::Query::get_user_info(&db_conn, &body.phone)
                     .await
                     .expect("fail to get user info by id");
 
                 if *IS_SINGLE_LOGIN_SESSION {
+                    let new_session_data = nanoid::nanoid!(64);
+
                     if let Err(err) = services::user::Mutation::update_user(&db_conn, user[0].0.clone(), services::user::UserUpdate{
                         name: None,
                         phone: None,
                         email: None,
                         password: None,
-                        session_data: Some(nanoid::nanoid!(64)),
+                        session_data: Some(new_session_data.clone()),
                         email_verified_at: None,
                         phone_verified_at: None,
                     }).await {
@@ -473,6 +479,8 @@ async fn login_phone_otp(
 
                         return HttpResponse::InternalServerError().finish();
                     }
+
+                    user[0].0.session_data = new_session_data;
                 }
 
                 let (token, refresh_token, fgp) = build_login_session(&user[0].0, &jwt_secret.0, &req);
@@ -501,19 +509,21 @@ async fn login_password(
         .pop();
 
     if let Some(user) = user {
-        let user = user.0;
+        let mut user = user.0;
 
         if let Some(password) = user.password.clone() {
             let hashed_password = argon2::password_hash::PasswordHash::new(&password)?;
 
             if argon2::Argon2::default().verify_password(body.password.as_bytes(), &hashed_password).is_ok() {
                 if *IS_SINGLE_LOGIN_SESSION {
+                    let new_session_data = nanoid::nanoid!(64);
+
                     if let Err(err) = services::user::Mutation::update_user(&db_conn, user.clone(), services::user::UserUpdate{
                         name: None,
                         phone: None,
                         email: None,
                         password: None,
-                        session_data: Some(nanoid::nanoid!(64)),
+                        session_data: Some(new_session_data.clone()),
                         email_verified_at: None,
                         phone_verified_at: None,
                     }).await {
@@ -521,6 +531,8 @@ async fn login_password(
 
                         return Ok(HttpResponse::InternalServerError().finish());
                     }
+
+                    user.session_data = new_session_data;
                 }
 
                 let (token, refresh_token, fgp) = build_login_session(&user, &jwt_secret.0, &req);
