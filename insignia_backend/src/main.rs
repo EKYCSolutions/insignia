@@ -21,6 +21,21 @@ static JWT_SECRET: Lazy<(EncodingKey, DecodingKey)> = Lazy::new(|| {
     )
 });
 
+fn otel_metadata() -> tonic::metadata::MetadataMap {
+    let mut map = tonic::metadata::MetadataMap::with_capacity(3);
+
+    map.insert(
+        "authorization",
+        std::env::var("OTEL_OPENOBSERVE_BASIC_AUTH").or::<String>(Ok("Basic YWRtaW5AZXhhbXBsZS5jb206YWJjMTIz".to_string()))
+            .unwrap()
+            .parse()
+            .unwrap(),
+    );
+    map.insert("stream-name", std::env::var("OTEL_OPENOBSERVE_STREAM_NAME").or::<String>(Ok("insignia".to_string())).unwrap().parse().unwrap());
+    map.insert("organization", std::env::var("OTEL_OPENOBSERVE_ORGANIZATION").or::<String>(Ok("default".to_string())).unwrap().parse().unwrap());
+    map
+}
+
 fn setup_logger(log_level: filter::LevelFilter) {
     let stdout_log = tracing_subscriber::fmt::layer()
         .json();
@@ -29,9 +44,10 @@ fn setup_logger(log_level: filter::LevelFilter) {
         .tonic()
         .with_endpoint(
             std::env::var("OTEL_ENDPOINT")
-                .or::<String>(Ok("http://localhost:4317".to_string()))
+                .or::<String>(Ok("http://localhost:5081/api/default".to_string()))
                 .unwrap()
-        );
+        )
+        .with_metadata(otel_metadata());
 
     let otel_trace_config = opentelemetry_sdk::trace::config()
         .with_resource(opentelemetry_sdk::Resource::new(vec![
@@ -60,7 +76,9 @@ fn setup_logger(log_level: filter::LevelFilter) {
                 .with_filter(log_level)
                 .and_then(filter::filter_fn(|metadata| {
                     !metadata.target().starts_with("actix") &&
-                    !metadata.target().starts_with("sqlx")
+                    !metadata.target().starts_with("sqlx") &&
+                    !metadata.target().starts_with("h2") &&
+                    !metadata.target().starts_with("mio")
                 }))
         )
         .init();
