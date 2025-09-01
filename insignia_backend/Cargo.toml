@@ -98,7 +98,12 @@ common = { path = "./common" }
 services = { path = "./services" }
 tracing-actix-web = "0.7.11"
 opentelemetry = { version = "0.23.0", features = ["metrics"] }
-opentelemetry-otlp = { version = "0.16.0", features = ["trace", "metrics"] }
+opentelemetry-otlp = { version = "0.16.0", features = [
+  "trace",
+  "metrics",
+  "http-proto",
+  "reqwest-client"
+] }
 opentelemetry_sdk = { version = "0.23.0", features = [
   "metrics",
   "tokio",

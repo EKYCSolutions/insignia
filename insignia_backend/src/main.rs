@@ -21,19 +21,16 @@ static JWT_SECRET: Lazy<(EncodingKey, DecodingKey)> = Lazy::new(|| {
     )
 });
 
-fn otel_metadata() -> tonic::metadata::MetadataMap {
-    let mut map = tonic::metadata::MetadataMap::with_capacity(3);
-
-    map.insert(
-        "authorization",
-        std::env::var("OTEL_OPENOBSERVE_BASIC_AUTH").or::<String>(Ok("Basic YWRtaW5AZXhhbXBsZS5jb206YWJjMTIz".to_string()))
-            .unwrap()
-            .parse()
-            .unwrap(),
-    );
-    map.insert("stream-name", std::env::var("OTEL_OPENOBSERVE_STREAM_NAME").or::<String>(Ok("insignia".to_string())).unwrap().parse().unwrap());
-    map.insert("organization", std::env::var("OTEL_OPENOBSERVE_ORGANIZATION").or::<String>(Ok("default".to_string())).unwrap().parse().unwrap());
-    map
+fn otel_metadata() -> std::collections::HashMap<String, String> {
+    std::collections::HashMap::from([
+        (
+            "authorization".to_string(),
+            std::env::var("OTEL_OPENOBSERVE_BASIC_AUTH").or::<String>(Ok("Basic YWRtaW5AZXhhbXBsZS5jb206YWJjMTIz".to_string()))
+                .unwrap()
+        ),
+        ("stream-name".to_string(), std::env::var("OTEL_OPENOBSERVE_STREAM_NAME").or::<String>(Ok("insignia".to_string())).unwrap()),
+        ("organization".to_string(), std::env::var("OTEL_OPENOBSERVE_ORGANIZATION").or::<String>(Ok("default".to_string())).unwrap())
+    ])
 }
 
 fn setup_logger(log_level: filter::LevelFilter) {
@@ -41,15 +38,16 @@ fn setup_logger(log_level: filter::LevelFilter) {
         .json();
 
     let otlp_exporter = opentelemetry_otlp::new_exporter()
-        .tonic()
+        .http()
         .with_endpoint(
             std::env::var("OTEL_ENDPOINT")
-                .or::<String>(Ok("http://localhost:5081/api/default".to_string()))
+                .or::<String>(Ok("http://localhost:5080/api/default/traces".to_string()))
                 .unwrap()
         )
-        .with_metadata(otel_metadata());
+        .with_headers(otel_metadata());
 
     let otel_trace_config = opentelemetry_sdk::trace::config()
+        .with_sampler(opentelemetry_sdk::trace::Sampler::ParentBased(Box::new(opentelemetry_sdk::trace::Sampler::TraceIdRatioBased(1.0))))
         .with_resource(opentelemetry_sdk::Resource::new(vec![
             opentelemetry::KeyValue::new(
                 "service.name",
@@ -63,6 +61,7 @@ fn setup_logger(log_level: filter::LevelFilter) {
         .tracing()
         .with_exporter(otlp_exporter)
         .with_trace_config(otel_trace_config)
+        .with_batch_config(opentelemetry_sdk::trace::BatchConfig::default())
         .install_batch(opentelemetry_sdk::runtime::Tokio)
         .unwrap();
 
