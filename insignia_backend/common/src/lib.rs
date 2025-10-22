@@ -60,9 +60,20 @@ pub fn build_login_session<'a>(
 ) -> (String, Cookie<'a>, Cookie<'a>) {
     let now = Utc::now();
 
-    let access_expiry = now.add(Duration::minutes(16));
+    let access_expiry_val = std::env::var("INSIGNIA_JWT_ACCESS_EXPIRY")
+        .or::<String>(Ok("16".to_string()))
+        .unwrap()
+        .parse::<i64>()
+        .expect("failed to parse INSIGNIA_JWT_ACCESS_EXPIRY");
+    let refresh_expiry_val = std::env::var("INSIGNIA_JWT_REFRESH_EXPIRY")
+        .or::<String>(Ok("8".to_string()))
+        .unwrap()
+        .parse::<u64>()
+        .expect("failed to parse INSIGNIA_JWT_REFRESH_EXPIRY");
 
-    let refresh_expiry = now.add(Days::new(8));
+    let access_expiry = now.add(Duration::minutes(access_expiry_val));
+
+    let refresh_expiry = now.add(Days::new(refresh_expiry_val));
 
     let jwt_id = nanoid::nanoid!(32);
 
