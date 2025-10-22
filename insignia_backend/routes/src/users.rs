@@ -285,7 +285,12 @@ async fn refresh_session(
 
             let iat = DateTime::from_timestamp(claims.iat as i64, 0)
                 .unwrap();
-            let access_exp = iat.add(Duration::minutes(16));
+            let access_expiry_val = std::env::var("INSIGNIA_JWT_ACCESS_EXPIRY")
+                .or::<String>(Ok("16".to_string()))
+                .unwrap()
+                .parse::<i64>()
+                .expect("failed to parse INSIGNIA_JWT_ACCESS_EXPIRY");
+            let access_exp = iat.add(Duration::minutes(access_expiry_val));
 
             let token_ctx = common::build_token_context(
                 &user[0].0,
