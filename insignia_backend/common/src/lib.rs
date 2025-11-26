@@ -256,4 +256,13 @@ pub struct Args {
 
     #[arg(long, required = false, env = "INSIGNIA_SMS_OTP_PROVIDER", help = "sms one time passcode provider")]
     pub sms_otp_provider: String,
+
+    #[arg(long, required = false, env = "INSIGNIA_GENERIC_SMS_OTP_BODY_TEMPLATE", help = "base64 of jsonnet for sms otp request body template")]
+    pub sms_otp_body_template: String,
+
+    #[arg(long, required = false, env = "INSIGNIA_GENERIC_SMS_OTP_URL")]
+    pub generic_sms_otp_url: String,
+
+    #[arg(long, required = false, env = "INSIGNIA_GENERIC_SMS_OTP_HTTP_METHOD")]
+    pub generic_sms_otp_http_method: String,
 }

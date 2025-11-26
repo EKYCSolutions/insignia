@@ -1,4 +1,5 @@
-use std::pin::Pin;
+use std::collections::HashMap;
+use std::{pin::Pin, str::FromStr};
 
 use nanoid::nanoid;
 use awc::http::StatusCode;
@@ -93,12 +94,42 @@ pub struct PlasgateServiceConfig {
     cache: Addr<DragonflyService>,
 }
 
+#[derive(Clone, Debug)]
+pub struct GenericServiceConfig {
+    url: String,
+    http_method: String,
+    http_body_template: String,
+    cache: Addr<DragonflyService>,
+}
+
+pub trait CacheService {
+    fn get_cache(&self) -> &Addr<DragonflyService>;
+}
+
 #[derive(Clone)]
 pub enum CoreSMSOtp {
+    Generic(awc::Client, GenericServiceConfig),
     Twilio(awc::Client, TwilioServiceConfig),
     Infobip(awc::Client, InfobipServiceConfig),
     Plasgate(awc::Client, PlasgateServiceConfig),
     Mock(),
+}
+
+impl CacheService for CoreSMSOtp {
+    fn get_cache(&self) -> &Addr<DragonflyService> {
+        match self {
+            CoreSMSOtp::Generic(_client, conf) => {
+                &conf.cache
+            }
+            CoreSMSOtp::Plasgate(_client, conf) => {
+                &conf.cache
+            }
+
+            CoreSMSOtp::Twilio(_client, _conf) => todo!(),
+            CoreSMSOtp::Infobip(_client, _conf) => todo!(),
+            CoreSMSOtp::Mock() => todo!(),
+        }
+    }
 }
 
 impl CoreSMSOtp {
@@ -154,6 +185,26 @@ impl CoreSMSOtp {
             }
         )
     }
+
+    pub fn new_generic(url: &str, http_method: &str, http_template_body: &str, cache_actor_addr: Addr<DragonflyService>, http_headers: Option<HashMap<String, String>>) -> Self {
+        let mut client = awc::ClientBuilder::new();
+
+        if let Some(headers) = http_headers {
+            for h in headers {
+                client = client.add_default_header(h);
+            }
+        }
+
+        Self::Generic(
+            client.finish(),
+            GenericServiceConfig {
+                url: url.to_string(),
+                http_method: http_method.to_string(),
+                http_body_template: http_template_body.to_string(),
+                cache: cache_actor_addr,
+            }
+        )
+    }
 }
 
 impl SMSOtp for CoreSMSOtp {
@@ -166,7 +217,6 @@ impl SMSOtp for CoreSMSOtp {
                     Ok(SMSOtpResult::SendResult(true))
                 })
             },
-
             Self::Plasgate(client, config) => {
                 Box::pin(async move {
                     let pin = nanoid!(6, &['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']);
@@ -201,7 +251,6 @@ impl SMSOtp for CoreSMSOtp {
                     Err(SMSOtpError::FailToSendCode(format!("plasgate error: {}", resp.status())))
                 })
             },
-
             Self::Twilio(client, config) => {
                 Box::pin(async {
                     let mut resp = client
@@ -222,7 +271,6 @@ impl SMSOtp for CoreSMSOtp {
                     Err(SMSOtpError::FailToSendCode(format!("twilio error: {}", resp.status())))
                 })
             },
-
             Self::Infobip(client, config) => {
                 Box::pin(async move {
                     let mut resp = client
@@ -255,6 +303,48 @@ impl SMSOtp for CoreSMSOtp {
                     Err(SMSOtpError::FailToSendCode(format!("infobip error: {}", resp.status())))
                 })
             },
+            CoreSMSOtp::Generic(client, generic_service_config) => {
+                Box::pin(async move {
+                    let pin = nanoid!(6, &['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']);
+
+                    generic_service_config.cache
+                        .send(crate::dragonfly::DragonflyCommand::Set(
+                            to.clone(),
+                            pin.clone(),
+                            redis::SetOptions::default().with_expiration(redis::SetExpiry::EX(960))
+                        ))
+                        .await??;
+
+                    let req_body = rs_jsonnet::evaluator::pure::evaluate_with_tla(
+                        &generic_service_config.http_body_template,
+                        HashMap::from([
+                            (
+                                "ctx".to_string(),
+                                serde_json::json!({
+                                    "to": to,
+                                    "otp": pin,
+                                }).to_string(),
+                            )
+                        ])
+                    )
+                        .expect("failed to parse generic sms otp body template");
+
+                    let mut resp = client
+                        .request(
+                            awc::http::Method::from_str(&generic_service_config.http_method)
+                                .expect("failed to parse http method"),
+                            &generic_service_config.url
+                        )
+                        .send_json(&req_body.to_json_value())
+                        .await?;
+
+                    if resp.status() == StatusCode::OK || resp.status() == StatusCode::NO_CONTENT {
+                        return Ok(SMSOtpResult::SendResult(true));
+                    }
+
+                    Err(SMSOtpError::FailToSendCode(format!("failed to send generic sms otp error: {}, {:?}", resp.status(), resp.body().await?)))
+                })
+            },
         }
     }
 
@@ -268,10 +358,9 @@ impl SMSOtp for CoreSMSOtp {
                     Ok(SMSOtpResult::VerifyResult(code == "000000"))
                 })
             },
-
-            Self::Plasgate(_client, config) => {
+            Self::Plasgate(..) | Self::Generic(..) => {
                 Box::pin(async move {
-                    let res = config.cache
+                    let res = self.get_cache()
                         .send(crate::dragonfly::DragonflyCommand::Get(to.clone()))
                         .await??;
 
@@ -284,7 +373,6 @@ impl SMSOtp for CoreSMSOtp {
                     Err(SMSOtpError::FailToVerifyCode("invalid otp code".to_string()))
                 })
             },
-
             Self::Twilio(client, config) => {
                 Box::pin(async move {
                     let mut resp = client
@@ -315,7 +403,6 @@ impl SMSOtp for CoreSMSOtp {
                     Err(SMSOtpError::FailToVerifyCode(format!("twilio error: {}", resp.status())))
                 })
             },
-
             Self::Infobip(client, config) => {
                 Box::pin(async move {
                     let res = config.cache

@@ -326,11 +326,15 @@ async fn verify_phone_otp_attempt(
         };
 
     if let Some(phone) = phone {
-        let _ =
+        let res =
             sms_otp_service
                 .send(services::sms_otp::CoreSMSOtpCommand::Send(phone))
                 .await
                 .expect("fail to send sms otp");
+
+        if let Err(err) = res {
+            tracing::error!("failed to send sms otp: {:?}", err);
+        }
     }
 
     HttpResponse::NoContent().finish()

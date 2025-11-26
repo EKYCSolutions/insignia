@@ -33,5 +33,7 @@ futures-util = { workspace = true }
 jsonwebtoken = { workspace = true }
 google-api-proto = { workspace = true }
 
+rs-jsonnet = "0.1.22"
+
 models = { path = "../models" }
 common = { path = "../common" }

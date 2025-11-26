@@ -1,6 +1,7 @@
 
-use actix::Actor;
 use clap::Parser;
+use actix::Actor;
+use base64::Engine;
 use once_cell::sync::Lazy;
 use opentelemetry_otlp::WithExportConfig;
 use jsonwebtoken::{EncodingKey, DecodingKey};
@@ -122,6 +123,18 @@ async fn main() -> std::io::Result<()> {
             &args.plasgate_secret.expect("plasgate secret not set"),
             &args.plasgate_private_key.expect("plasgate private key not set"),
             dragonfly_actor_addr.clone()
+        ),
+        "generic" => services::sms_otp::CoreSMSOtp::new_generic(
+            &args.generic_sms_otp_url,
+            &args.generic_sms_otp_http_method,
+            &String::from_utf8(
+                base64::engine::general_purpose::STANDARD
+                    .decode(&args.sms_otp_body_template)
+                    .expect("failed to decode sms otp body template")
+            )
+                .expect("failed to convert sms otp body template to string"),
+            dragonfly_actor_addr.clone(),
+            None
         ),
         "mock" => services::sms_otp::CoreSMSOtp::new_mock(),
         _ => panic!("unsupported sms otp provider"),
