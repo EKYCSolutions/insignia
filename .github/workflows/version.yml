@@ -10,7 +10,7 @@ on:
 
 jobs:
   get-version:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     outputs:
       short_sha: ${{ steps.get_short_sha.outputs.short_sha }}
