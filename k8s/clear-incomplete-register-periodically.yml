@@ -1,0 +1,22 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: clear-incomplete-register
+  namespace: default
+spec:
+  schedule: 8 * * * *
+  failedJobsHistoryLimit: 1
+  successfulJobsHistoryLimit: 4
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: clear-incomplete-register
+            image: alpine/curl:8.17.0
+            command:
+            - curl
+            - -XPOST
+            - http://insignia-admin/users/remove-unsuccessful-register-users
+          restartPolicy: OnFailure

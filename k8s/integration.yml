@@ -1,0 +1,49 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: insignia-integration
+  namespace: default
+  labels:
+    app.kubernetes.io/component: insignia
+spec:
+  selector:
+    matchLabels:
+      app: insignia-integration
+  template:
+    metadata:
+      labels:
+        app: insignia-integration
+    spec:
+      containers:
+      - name: insignia-integration
+        image: ghcr.io/xshadowlegendx/insignia:latest
+
+        command:
+        - /opt/app/insignia-integration-server
+
+        resources:
+          limits:
+            cpu: '1'
+            memory: 1Gi
+          requests:
+            cpu: 64m
+            memory: 128Mi
+
+        ports:
+        - name: grpc
+          containerPort: 26969
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: insignia-integration
+  namespace: default
+spec:
+  selector:
+    app: insignia-integration
+  ports:
+  - name: grpc
+    port: 26969
+    targetPort: grpc

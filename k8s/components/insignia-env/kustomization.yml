@@ -1,0 +1,52 @@
+---
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+patches:
+- target:
+    kind: Deployment
+    labelSelector: app.kubernetes.io/component=insignia
+  patch: |-
+    - op: replace
+      path: /spec/template/spec/volumes
+      value:
+        - name: insignia-jwt-session-keys
+          secret:
+            secretName: insignia
+            items:
+            - key: sessionKey
+              path: session.key
+
+            - key: jwtPublicKey
+              path: jwt.pub
+
+            - key: jwtPrivateKey
+              path: jwt.priv
+
+    - op: replace
+      path: /spec/template/spec/containers/0/volumeMounts
+      value:
+        - name: insignia-jwt-session-keys
+          mountPath: /opt/app/etc
+          readOnly: true
+
+    - op: replace
+      path: /spec/template/spec/containers/0/envFrom
+      value:
+        - configMapRef:
+            name: insignia
+
+    - op: replace
+      path: /spec/template/spec/containers/0/env
+      value:
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              name: insignia-pg-app
+              key: username
+
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: insignia-pg-app
+              key: password

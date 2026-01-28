@@ -1,0 +1,18 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: insignia
+  namespace: default
+data:
+  INSIGNIA_DEV_MODE: 'false'
+  INSIGNIA_LISTEN_ADDR: 0.0.0.0
+  INSIGNIA_IS_SINGLE_LOGIN_SESSION: 'yes'
+  INSIGNIA_PHONE_OTP_IGNORE_USERS: '+85512123124'
+  INSIGNIA_DRAGONFLY_CONN_STR: insignia-dragonfly.dragonfly.svc.cluster.local:6379
+  DATABASE_URL: postgresql://insignia-pg-rw.default.svc.cluster.local/insignia
+  INSIGNIA_DB_CONN_STR: postgresql://insignia-pg-rw.default.svc.cluster.local/insignia
+  INSIGNIA_SMS_OTP_PROVIDER: mock
+  INSIGNIA_GENERIC_SMS_OTP_BODY_TEMPLATE: Y3R4
+  INSIGNIA_GENERIC_SMS_OTP_URL: https://httpbin.org
+  INSIGNIA_GENERIC_SMS_OTP_HTTP_METHOD: POST
