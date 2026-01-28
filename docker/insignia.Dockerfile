@@ -17,7 +17,9 @@ RUN apk add --no-cache --virtual .build-deps\
 COPY . .
 
 RUN cargo build -r --target=$(arch)-unknown-linux-musl &&\
-  cargo build -r --target=$(arch)-unknown-linux-musl --manifest-path migration/Cargo.toml
+  cargo build -r --target=$(arch)-unknown-linux-musl --manifest-path migration/Cargo.toml &&\
+  mkdir out &&\
+  cp /opt/app/target/$(arch)-unknown-linux-musl/release/migration /opt/app/target/$(arch)-unknown-linux-musl/release/insignia /opt/app/target/$(arch)-unknown-linux-musl/release/insignia-integration-server ./out/
 
 FROM alpine:3.21
 
@@ -27,6 +29,4 @@ RUN apk add --no-cache --virtual .deps openssl
 
 COPY ./migration/ ./
 
-COPY --from=builder /opt/app/target/$(arch)-unknown-linux-musl/release/migration db-migration
-COPY --from=builder /opt/app/target/$(arch)-unknown-linux-musl/release/insignia .
-COPY --from=builder /opt/app/target/$(arch)-unknown-linux-musl/release/insignia-integration-server .
+COPY --from=builder /opt/app/out/ ./
