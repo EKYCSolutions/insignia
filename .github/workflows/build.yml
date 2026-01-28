@@ -7,6 +7,7 @@ on:
       - main
       - dev
     paths-ignore:
+      - k8s/**
       - .gitignore
       - .env.example
       - readme.md
