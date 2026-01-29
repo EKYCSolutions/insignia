@@ -1,0 +1,14 @@
+
+load('ext://namespace', 'namespace_create')
+load('ext://wait_for_it', 'wait_for_it')
+load('ext://helm_resource', 'helm_resource', 'helm_repo')
+
+namespace_create('cnpg-system')
+helm_repo('cnpg', 'https://cloudnative-pg.github.io/charts')
+helm_resource('cloudnative-pg', 'cnpg/cloudnative-pg', namespace='cnpg-system', resource_deps=['cnpg'])
+
+k8s_yaml(local('curl https://raw.githubusercontent.com/dragonflydb/dragonfly-operator/main/manifests/dragonfly-operator.yaml'))
+
+k8s_yaml(kustomize('k8s/local'))
+
+k8s_yaml(kustomize('k8s/'))
