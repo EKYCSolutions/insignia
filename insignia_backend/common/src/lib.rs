@@ -254,6 +254,9 @@ pub struct Args {
     #[arg(long, required = false, env = "INSIGNIA_PLASGATE_PRIVATE_KEY", help = "plasgate private key")]
     pub plasgate_private_key: Option<String>,
 
+    #[arg(long, required = false, env = "INSIGNIA_PLASGATE_GATEWAYS", help = "json map of merchant host -> {private_key, secret, sender}; falls back to the single default gateway when the host is not listed")]
+    pub plasgate_gateways: Option<String>,
+
     #[arg(long, required = false, env = "INSIGNIA_SMS_OTP_PROVIDER", help = "sms one time passcode provider")]
     pub sms_otp_provider: String,
 

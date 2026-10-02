@@ -122,6 +122,7 @@ async fn main() -> std::io::Result<()> {
             &args.plasgate_sender_name.expect("plasgate sender name not set"),
             &args.plasgate_secret.expect("plasgate secret not set"),
             &args.plasgate_private_key.expect("plasgate private key not set"),
+            args.plasgate_gateways.as_deref(),
             dragonfly_actor_addr.clone()
         ),
         "generic" => services::sms_otp::CoreSMSOtp::new_generic(

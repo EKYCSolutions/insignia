@@ -67,7 +67,7 @@ pub enum SMSOtpResult {
 }
 
 trait SMSOtp {
-    fn send(&self, to: &str) -> Pin<Box<dyn futures::Future<Output = Result<SMSOtpResult, SMSOtpError>> + '_>>;
+    fn send(&self, to: &str, host: Option<&str>) -> Pin<Box<dyn futures::Future<Output = Result<SMSOtpResult, SMSOtpError>> + '_>>;
 
     fn verify(&self, to: &str, code: &str) -> Pin<Box<dyn futures::Future<Output = Result<SMSOtpResult, SMSOtpError>> + '_>>;
 }
@@ -86,12 +86,35 @@ pub struct InfobipServiceConfig {
     cache: Addr<DragonflyService>,
 }
 
+#[derive(Clone, Debug, serde::Deserialize)]
+pub struct PlasgateGateway {
+    pub private_key: String,
+    pub secret: String,
+    pub sender: String,
+}
+
 #[derive(Clone)]
 pub struct PlasgateServiceConfig {
     base_url: String,
     private_key: String,
+    secret: String,
     sender_name: String,
+    gateways: HashMap<String, PlasgateGateway>,
     cache: Addr<DragonflyService>,
+}
+
+impl PlasgateServiceConfig {
+    fn resolve_gateway(&self, host: Option<&str>) -> (&str, &str, &str) {
+        if let Some(host) = host {
+            let key = host.split(':').next().unwrap_or(host).to_lowercase();
+
+            if let Some(gateway) = self.gateways.get(&key) {
+                return (&gateway.private_key, &gateway.secret, &gateway.sender);
+            }
+        }
+
+        (&self.private_key, &self.secret, &self.sender_name)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -137,17 +160,31 @@ impl CoreSMSOtp {
         Self::Mock()
     }
 
-    pub fn new_plasgate(plasgate_sender_name: &str, plasgate_secret: &str, plasgate_private_key: &str, cache_actor_addr: Addr<DragonflyService>) -> Self {
-        let client = awc::ClientBuilder::new()
-            .add_default_header(("x-secret", plasgate_secret))
-            .finish();
+    pub fn new_plasgate(plasgate_sender_name: &str, plasgate_secret: &str, plasgate_private_key: &str, plasgate_gateways: Option<&str>, cache_actor_addr: Addr<DragonflyService>) -> Self {
+        let client = awc::ClientBuilder::new().finish();
+
+        let gateways = plasgate_gateways
+            .and_then(|gateways| {
+                serde_json::from_str::<HashMap<String, PlasgateGateway>>(gateways)
+                    .map_err(|err| {
+                        tracing::error!("fail to parse INSIGNIA_PLASGATE_GATEWAYS: {:?}", err);
+                        err
+                    })
+                    .ok()
+            })
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(host, gateway)| (host.to_lowercase(), gateway))
+            .collect::<HashMap<String, PlasgateGateway>>();
 
         Self::Plasgate(
             client,
             PlasgateServiceConfig {
                 base_url: "https://cloudapi.plasgate.com".to_string(),
                 private_key: plasgate_private_key.to_string(),
+                secret: plasgate_secret.to_string(),
                 sender_name: plasgate_sender_name.to_string(),
+                gateways,
                 cache: cache_actor_addr,
             }
         )
@@ -208,8 +245,9 @@ impl CoreSMSOtp {
 }
 
 impl SMSOtp for CoreSMSOtp {
-    fn send(&self, to: &str) -> Pin<Box<dyn futures::Future<Output = Result<SMSOtpResult, SMSOtpError>> + '_>> {
+    fn send(&self, to: &str, host: Option<&str>) -> Pin<Box<dyn futures::Future<Output = Result<SMSOtpResult, SMSOtpError>> + '_>> {
         let to = to.to_string();
+        let host = host.map(|host| host.to_string());
 
         match self {
             Self::Mock() => {
@@ -229,11 +267,14 @@ impl SMSOtp for CoreSMSOtp {
                         ))
                         .await??;
 
+                    let (private_key, secret, sender) = config.resolve_gateway(host.as_deref());
+
                     let mut resp = client
-                        .post(format!("{}/rest/send?private_key={}", &config.base_url, &config.private_key))
+                        .post(format!("{}/rest/send?private_key={}", &config.base_url, private_key))
+                        .insert_header(("x-secret", secret))
                         .send_json(&serde_json::json!({
                             "to": to,
-                            "sender": &config.sender_name,
+                            "sender": sender,
                             "content": format!("Your OTP code is - {}", pin)
                         }))
                         .await?;
@@ -442,7 +483,7 @@ impl SMSOtp for CoreSMSOtp {
 #[derive(Message, Debug)]
 #[rtype(result = "Result<SMSOtpResult, SMSOtpError>")]
 pub enum CoreSMSOtpCommand {
-    Send(String),
+    Send { to: String, host: Option<String> },
     Verify(String, String),
 }
 
@@ -454,8 +495,8 @@ impl Handler<CoreSMSOtpCommand> for CoreSMSOtp {
 
         Box::pin(async move {
             match msg {
-                CoreSMSOtpCommand::Send(to) => {
-                    this.send(&to).await
+                CoreSMSOtpCommand::Send { to, host } => {
+                    this.send(&to, host.as_deref()).await
                 },
                 CoreSMSOtpCommand::Verify(to, code) => {
                     this.verify(&to, &code).await

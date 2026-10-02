@@ -65,6 +65,14 @@ struct SetPhoneOtpReqDto {
     code: String,
 }
 
+fn request_host(req: &HttpRequest) -> Option<String> {
+    req.headers()
+        .get(actix_web::http::header::HOST)
+        .or_else(|| req.headers().get("x-forwarded-host"))
+        .and_then(|host| host.to_str().ok())
+        .map(|host| host.to_string())
+}
+
 async fn register_webauthn_initialize(
     session: Session,
     user_context: UserContext,
@@ -299,6 +307,7 @@ async fn login_webauthn_finalize(
 }
 
 async fn verify_phone_otp_attempt(
+    req: HttpRequest,
     session: Session,
     user_context: UserContext,
     db_conn: web::Data<sea_orm::DatabaseConnection>,
@@ -328,7 +337,7 @@ async fn verify_phone_otp_attempt(
     if let Some(phone) = phone {
         let res =
             sms_otp_service
-                .send(services::sms_otp::CoreSMSOtpCommand::Send(phone))
+                .send(services::sms_otp::CoreSMSOtpCommand::Send { to: phone, host: request_host(&req) })
                 .await
                 .expect("fail to send sms otp");
 
@@ -415,6 +424,7 @@ static IS_SINGLE_LOGIN_SESSION: Lazy<bool> = Lazy::new(|| {
 });
 
 async fn login_phone_otp_attempt(
+    req: HttpRequest,
     db_conn: web::Data<sea_orm::DatabaseConnection>,
     body: web::Form<PhoneOtpLoginReqDto>,
     sms_otp_service: web::Data<actix::Addr<CoreSMSOtp>>
@@ -434,7 +444,7 @@ async fn login_phone_otp_attempt(
 
         let _ =
             sms_otp_service
-                .send(services::sms_otp::CoreSMSOtpCommand::Send(user_phone))
+                .send(services::sms_otp::CoreSMSOtpCommand::Send { to: user_phone, host: request_host(&req) })
                 .await
                 .expect("fail to send sms otp");
     }
@@ -669,6 +679,7 @@ async fn remove_webauthn_credential(
 }
 
 async fn set_phone_otp_attempt(
+    req: HttpRequest,
     user_context: UserContext,
     body: web::Form<SetPhoneOtpAttemptReqDto>,
     db_conn: web::Data<sea_orm::DatabaseConnection>,
@@ -680,6 +691,8 @@ async fn set_phone_otp_attempt(
     }
 
     let user = user_context.user.unwrap();
+
+    let host = request_host(&req);
 
     actix::spawn(async move {
         if let Some(current_phone) = user.phone {
@@ -700,7 +713,7 @@ async fn set_phone_otp_attempt(
                 if let Ok(Ok(_)) = result {
                     let _ =
                         sms_otp_service
-                            .send(services::sms_otp::CoreSMSOtpCommand::Send(body.phone.to_owned()))
+                            .send(services::sms_otp::CoreSMSOtpCommand::Send { to: body.phone.to_owned(), host })
                             .await
                             .expect("fail to send sms otp for set phone attempt");
                 }
