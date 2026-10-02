@@ -28,13 +28,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: set lowercase image repository
+        id: img
+        run: echo "repo=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
       - name: build and push insignia postgresql image
         uses: docker/build-push-action@v5
         with:
           push: true
           context: ./docker
           file: ./docker/postgres.Dockerfile
-          tags: ghcr.io/${{ github.repository }}:postgresql-${{ inputs.image_version_tag }}
+          tags: ghcr.io/${{ steps.img.outputs.repo }}:postgresql-${{ inputs.image_version_tag }}
 
   build-insignia-image:
     runs-on: ubuntu-24.04
@@ -55,6 +59,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: set lowercase image repository
+        id: img
+        run: echo "repo=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
       - name: build and push insignia image
         uses: docker/build-push-action@v6
         with:
@@ -62,4 +70,4 @@ jobs:
           platforms: linux/amd64,linux/arm64
           context: ./insignia_backend
           file: ./docker/insignia.Dockerfile
-          tags: ghcr.io/${{ github.repository }}:${{ inputs.image_version_tag }}
+          tags: ghcr.io/${{ steps.img.outputs.repo }}:${{ inputs.image_version_tag }}
