@@ -86,34 +86,26 @@ pub struct InfobipServiceConfig {
     cache: Addr<DragonflyService>,
 }
 
-#[derive(Clone, Debug, serde::Deserialize)]
-pub struct PlasgateGateway {
-    pub private_key: String,
-    pub secret: String,
-    pub sender: String,
-}
-
 #[derive(Clone)]
 pub struct PlasgateServiceConfig {
     base_url: String,
     private_key: String,
-    secret: String,
     sender_name: String,
-    gateways: HashMap<String, PlasgateGateway>,
+    senders: HashMap<String, String>,
     cache: Addr<DragonflyService>,
 }
 
 impl PlasgateServiceConfig {
-    fn resolve_gateway(&self, host: Option<&str>) -> (&str, &str, &str) {
+    fn resolve_sender(&self, host: Option<&str>) -> &str {
         if let Some(host) = host {
             let key = host.split(':').next().unwrap_or(host).to_lowercase();
 
-            if let Some(gateway) = self.gateways.get(&key) {
-                return (&gateway.private_key, &gateway.secret, &gateway.sender);
+            if let Some(sender) = self.senders.get(&key) {
+                return sender;
             }
         }
 
-        (&self.private_key, &self.secret, &self.sender_name)
+        &self.sender_name
     }
 }
 
@@ -160,31 +152,32 @@ impl CoreSMSOtp {
         Self::Mock()
     }
 
-    pub fn new_plasgate(plasgate_sender_name: &str, plasgate_secret: &str, plasgate_private_key: &str, plasgate_gateways: Option<&str>, cache_actor_addr: Addr<DragonflyService>) -> Self {
-        let client = awc::ClientBuilder::new().finish();
+    pub fn new_plasgate(plasgate_sender_name: &str, plasgate_secret: &str, plasgate_private_key: &str, plasgate_senders: Option<&str>, cache_actor_addr: Addr<DragonflyService>) -> Self {
+        let client = awc::ClientBuilder::new()
+            .add_default_header(("x-secret", plasgate_secret))
+            .finish();
 
-        let gateways = plasgate_gateways
-            .and_then(|gateways| {
-                serde_json::from_str::<HashMap<String, PlasgateGateway>>(gateways)
+        let senders = plasgate_senders
+            .and_then(|senders| {
+                serde_json::from_str::<HashMap<String, String>>(senders)
                     .map_err(|err| {
-                        tracing::error!("fail to parse INSIGNIA_PLASGATE_GATEWAYS: {:?}", err);
+                        tracing::error!("fail to parse INSIGNIA_PLASGATE_SENDERS: {:?}", err);
                         err
                     })
                     .ok()
             })
             .unwrap_or_default()
             .into_iter()
-            .map(|(host, gateway)| (host.to_lowercase(), gateway))
-            .collect::<HashMap<String, PlasgateGateway>>();
+            .map(|(host, sender)| (host.split(':').next().unwrap_or(&host).to_lowercase(), sender))
+            .collect::<HashMap<String, String>>();
 
         Self::Plasgate(
             client,
             PlasgateServiceConfig {
                 base_url: "https://cloudapi.plasgate.com".to_string(),
                 private_key: plasgate_private_key.to_string(),
-                secret: plasgate_secret.to_string(),
                 sender_name: plasgate_sender_name.to_string(),
-                gateways,
+                senders,
                 cache: cache_actor_addr,
             }
         )
@@ -267,11 +260,10 @@ impl SMSOtp for CoreSMSOtp {
                         ))
                         .await??;
 
-                    let (private_key, secret, sender) = config.resolve_gateway(host.as_deref());
+                    let sender = config.resolve_sender(host.as_deref());
 
                     let mut resp = client
-                        .post(format!("{}/rest/send?private_key={}", &config.base_url, private_key))
-                        .insert_header(("x-secret", secret))
+                        .post(format!("{}/rest/send?private_key={}", &config.base_url, &config.private_key))
                         .send_json(&serde_json::json!({
                             "to": to,
                             "sender": sender,
