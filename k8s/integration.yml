@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: insignia-integration
-        image: ghcr.io/xshadowlegendx/insignia:latest
+        image: ghcr.io/ekycsolutions/insignia:latest
 
         command:
         - /opt/app/insignia-integration-server

@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: insignia-admin
-        image: ghcr.io/xshadowlegendx/insignia:latest
+        image: ghcr.io/ekycsolutions/insignia:latest
 
         command: [sh, -c, /opt/app/migration && /opt/app/insignia -m admin]
 

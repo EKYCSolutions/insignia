@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: insignia-frontend
-        image: ghcr.io/xshadowlegendx/insignia:latest
+        image: ghcr.io/ekycsolutions/insignia:latest
 
         command: [/opt/app/insignia, -m, frontend]
 
